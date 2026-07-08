@@ -41,3 +41,37 @@ spec.
 Do not push device protocol concepts into the mobile API. The mobile app should
 never know about UDP, AEAD, boot counters, modem command details, or binary
 payload formats.
+
+## Local MVP
+
+The current implementation is a runnable in-memory MVP. It demonstrates the
+mobile-facing VSRV API shape before PostgreSQL, payments, push providers, and real
+VNMS integration are added.
+
+Run:
+
+```sh
+go run ./cmd/vsrv
+```
+
+Default listener:
+
+```text
+http://127.0.0.1:8090
+```
+
+Useful flow:
+
+1. Start this backend.
+2. Start `vigelo-frontend` with `npm run dev`.
+3. Create an account in the frontend.
+4. Claim a demo device with `device_id=860123456789012&key=dev`.
+5. Activate service, edit monitored hours, load activity, and load alerts.
+
+MVP limitations:
+
+- Data is in memory and resets when the process stops.
+- Password hashing is development-only and must be replaced with Argon2id before
+  production.
+- VNMS, payment, push, email, and database integrations are represented by local
+  service seams and demo state.
