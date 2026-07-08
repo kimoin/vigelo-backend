@@ -715,8 +715,13 @@ func writeError(w http.ResponseWriter, status int, code, message, field string) 
 }
 
 func withCORS(next http.Handler) http.Handler {
+	allowed := corsAllowedOrigins()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", env("VSRV_CORS_ORIGIN", "http://127.0.0.1:5173"))
+		origin := r.Header.Get("Origin")
+		if origin != "" && allowed[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		if r.Method == http.MethodOptions {
@@ -725,6 +730,17 @@ func withCORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func corsAllowedOrigins() map[string]bool {
+	raw := env("VSRV_CORS_ORIGIN", "http://127.0.0.1:5173,http://localhost:5173")
+	allowed := make(map[string]bool)
+	for _, o := range strings.Split(raw, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			allowed[o] = true
+		}
+	}
+	return allowed
 }
 
 func validateWindows(windows []monitoredWindow) error {

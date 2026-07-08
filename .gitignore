@@ -1,0 +1,5 @@
+# Compiled binaries
+/vsrv
+
+# Local environment
+.env
