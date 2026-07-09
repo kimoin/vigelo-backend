@@ -108,15 +108,18 @@ Claim request example:
 }
 ```
 
-Claim behavior:
+Claim behavior (implemented):
 
-1. Parse and validate QR payload.
+1. Parse and validate QR payload or structured `device_id` + `enrollment_secret`.
 2. Verify the user can claim into the household.
-3. Create a VSRV device binding in pending state.
-4. Call VNMS `POST /v1/devices:provision` with `device_id` and device key or
-   enrollment material.
-5. Mark binding claimed/provisioned.
-6. Prompt for subscription activation if needed.
+3. Call VNMS `POST /v1/devices/{device_id}/verify-enrollment` (constant-time key check).
+4. Create Postgres `device_bindings` and trialing `subscriptions`.
+5. Call VNMS `POST /v1/devices/{device_id}/enable`.
+6. Merge VNMS state via `batchGet` for list/detail responses.
+7. Prompt for subscription activation if needed.
+
+Factory inventory must exist in VNMS (`POST /v1/devices:provision-inventory`) before
+user enrollment. VSRV does **not** call `POST /v1/devices:provision` during claim.
 
 Never return the device key to the app after claim.
 
@@ -185,13 +188,22 @@ Mobile-facing payload should use local-time intent:
   "windows": [
     {
       "start_time": "08:00",
-      "end_time": "20:00",
-      "days": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+      "end_time": "20:00"
     }
   ],
-  "notifications_enabled": true
+  "alert_mode": "no_movement_detected"
 }
 ```
+
+`alert_mode` is **mutually exclusive** — choose one:
+
+| Value | Meaning |
+|-------|---------|
+| `no_movement_detected` | Alert if no movement during monitored window (default) |
+| `movement_detected` | Alert if movement is detected during monitored window |
+
+Saving monitored windows enables the selected movement rule and disables the other.
+`device_offline` alerts are independent of this choice.
 
 First VNMS release supports daily repeating UTC windows, not per-weekday windows.
 For MVP, VSRV can constrain the UI/API to daily repeating windows. Keep `days`

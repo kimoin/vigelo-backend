@@ -1,0 +1,5 @@
+# Replace api.example.vigelo.fi with your hostname. For private-network-only
+# deployments, bind to an internal hostname and issue certs via your CA.
+{$VSRV_HOSTNAME:localhost} {
+    reverse_proxy vsrv:8090
+}

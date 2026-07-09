@@ -1,5 +1,10 @@
 # Compiled binaries
 /vsrv
+/bin/
 
 # Local environment
 .env
+deploy/.env
+
+# macOS
+.DS_Store

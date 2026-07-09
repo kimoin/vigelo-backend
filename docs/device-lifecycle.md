@@ -1,5 +1,8 @@
 # Device Lifecycle
 
+> **Implementation status:** Enrollment via VNMS verify-enrollment + enable is
+> live. See [`implementation-status.md`](implementation-status.md).
+
 ## Purpose
 
 VSRV owns the product lifecycle of a physical Vigelo device in a household. VNMS
@@ -33,12 +36,13 @@ raw in normal mobile screens.
 ## Claim Flow
 
 ```text
-Mobile scans QR
+Factory imports device in VNMS (provision-inventory, disabled)
+Mobile scans QR or enters device_id + key
   -> VSRV parses enrollment payload
-  -> VSRV creates DeviceClaim and pending DeviceBinding
-  -> VSRV calls VNMS provision endpoint
-  -> VSRV marks binding provisioned
-  -> user activates subscription
+  -> VSRV calls VNMS verify-enrollment
+  -> VSRV creates DeviceBinding + trialing subscription
+  -> VSRV calls VNMS enable
+  -> user activates subscription (demo checkout)
   -> device becomes active when service and first contact are ready
 ```
 
@@ -58,13 +62,11 @@ Claim requirements:
 
 ## Provisioning in VNMS
 
-VSRV calls:
+**Factory (before user claim):**
 
 ```http
-POST /v1/devices:provision
+POST /v1/devices:provision-inventory
 ```
-
-with:
 
 ```json
 {
@@ -73,8 +75,19 @@ with:
 }
 ```
 
+Device is stored as `disabled` until user enrollment.
+
+**User enrollment (VSRV):**
+
+```http
+POST /v1/devices/{device_id}/verify-enrollment
+POST /v1/devices/{device_id}/enable
+```
+
+VSRV calls verify-enrollment with the enrollment secret, then enable after binding.
 VNMS stores the device key and uses it to authenticate future UDP traffic. VSRV
-stores only the device binding and product ownership.
+stores only the device binding and product ownership; raw keys are not persisted
+after successful enrollment.
 
 ## First Contact
 

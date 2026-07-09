@@ -1,0 +1,80 @@
+# Production-style single-host deployment for the VSRV UpCloud VM.
+# Postgres stays internal; Caddy terminates TLS for the public API.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vsrv}
+      POSTGRES_USER: ${POSTGRES_USER:-vsrv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - vsrv-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    image: postgres:16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_USER: ${POSTGRES_USER:-vsrv}
+      POSTGRES_DB: ${POSTGRES_DB:-vsrv}
+    volumes:
+      - ../migrations:/migrations:ro
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+        for f in /migrations/*.sql; do
+          echo "applying $$f"
+          psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 -f "$$f"
+        done
+    restart: "no"
+
+  vsrv:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      VSRV_ADDR: ":8090"
+      VSRV_DATABASE_URL: postgres://${POSTGRES_USER:-vsrv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vsrv}?sslmode=disable
+      VSRV_PUBLIC_URL: ${VSRV_PUBLIC_URL:-}
+      VSRV_CORS_ORIGIN: ${VSRV_CORS_ORIGIN:-}
+      VSRV_LOG_LEVEL: ${VSRV_LOG_LEVEL:-info}
+      OFFLINE_THRESHOLD_HOURS: ${OFFLINE_THRESHOLD_HOURS:-3}
+      DEFAULT_TRIAL_DAYS: ${DEFAULT_TRIAL_DAYS:-30}
+      VNMS_BASE_URL: ${VNMS_BASE_URL:-}
+      VNMS_HTTP_TOKEN: ${VNMS_HTTP_TOKEN:-}
+    expose:
+      - "8090"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    depends_on:
+      - vsrv
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  vsrv-postgres:
+  caddy-data:
+  caddy-config:

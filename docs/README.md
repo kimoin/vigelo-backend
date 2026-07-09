@@ -1,7 +1,12 @@
 # Vigelo Backend Design Docs
 
+**Implementation status:** [`implementation-status.md`](implementation-status.md) — Phases 1–5 complete (2026-07-09).
+
 Read in this order:
 
+0. [`implementation-status.md`](implementation-status.md) — what is built today (API, migrations, E2E).
+1. [`vsrvplan.md`](vsrvplan.md) - consolidated implementation plan, deployment
+   topology, and locked-in product decisions.
 1. [`architecture.md`](architecture.md) - system boundary and module direction.
 2. [`domain-model.md`](domain-model.md) - product entities and authorization shape.
 3. [`device-lifecycle.md`](device-lifecycle.md) - claim, provision, transfer, removal.

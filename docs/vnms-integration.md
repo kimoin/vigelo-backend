@@ -1,5 +1,8 @@
 # VNMS Integration
 
+> **Implementation status:** `internal/vnmsclient` and `internal/vnmsevents` are
+> live. See [`implementation-status.md`](implementation-status.md).
+
 ## Purpose
 
 VSRV integrates with VNMS through an authenticated service-to-service API and a
@@ -27,7 +30,10 @@ Important endpoints:
 ```http
 GET  /healthz
 GET  /v1/devices?q=&limit=50&offset=0
-POST /v1/devices:provision
+POST /v1/devices:provision-inventory    # factory import (disabled)
+POST /v1/devices/{device_id}/verify-enrollment
+POST /v1/devices/{device_id}/enable
+POST /v1/devices/{device_id}/disable
 POST /v1/devices:batchGet
 GET  /v1/devices/{device_id}
 GET  /v1/devices/{device_id}/activity?start=YYYY-MM-DD&end=YYYY-MM-DD
@@ -37,6 +43,9 @@ POST /v1/devices/{device_id}/request-device-status
 POST /v1/devices/{device_id}/deactivate
 GET  /v1/events?after=0&limit=100
 ```
+
+`POST /v1/devices:provision` remains for direct provisioning; the product flow
+uses factory inventory + verify-enrollment + enable instead.
 
 The legacy VNMS route `PUT /v1/devices/{device_id}/desired-schedule` exists as an
 alias but VSRV should use `/monitored-windows`.
@@ -64,12 +73,13 @@ through its own audit/event logs.
 ## Device Claim and Provisioning Flow
 
 ```text
+Factory: VNMS provision-inventory (device disabled)
 Mobile scans QR
-  -> VSRV parses claim data
+  -> VSRV parses claim data (device_id + enrollment_secret)
   -> VSRV authenticates user and household permission
-  -> VSRV creates pending DeviceBinding
-  -> VSRV calls VNMS POST /v1/devices:provision
-  -> VSRV marks binding claimed/provisioned
+  -> VSRV calls VNMS verify-enrollment
+  -> VSRV creates DeviceBinding + trialing subscription
+  -> VSRV calls VNMS enable
   -> VSRV starts subscription activation flow if needed
   -> Mobile sees device as pending first contact or active
 ```

@@ -1,5 +1,9 @@
 # Alerts and Notifications
 
+> **Implementation status:** VNMS event consumer, Postgres alerts, offline
+> detection, and GatewayAPI SMS are live. Push tokens remain in-memory (Phase 6).
+> See [`implementation-status.md`](implementation-status.md).
+
 ## Purpose
 
 VSRV owns alert policy and push notification delivery. VNMS emits authenticated
@@ -39,6 +43,14 @@ Product alert types:
 - `device_removed_or_revoked`
 
 MVP can start with monitored-window movement/no-movement and device offline.
+
+**Implemented defaults:**
+
+- Movement and no-movement rules are created on device register but **disabled**.
+- User enables exactly one via `alert_mode` on `PUT /monitored-windows`.
+- `device_offline` rule is enabled by default; threshold from `OFFLINE_THRESHOLD_HOURS`.
+- SMS sent for `no_movement_detected` and `device_offline` when rule includes `sms`
+  and member has verified phone.
 
 ## Alert Rule Model
 
@@ -179,13 +191,17 @@ Initial direction:
 
 ## Monitored Window Alerts
 
-VNMS emits monitored-window facts. VSRV applies user preference:
+VNMS emits monitored-window facts. VSRV applies user preference via `alert_mode`
+on monitored windows (movement **or** no-movement, not both):
 
-- Alert on movement.
-- Alert on no movement.
-- Alert only during selected windows.
-- Suppress during quiet hours.
-- Notify selected household members/caregivers.
+- `movement_detected` — alert when movement occurs during monitored window.
+- `no_movement_detected` — alert when no movement during monitored window.
+
+Additional preferences (not yet implemented):
+
+- Alert only during selected windows (beyond VNMS window policy).
+- Suppress during quiet hours (schema exists; not evaluated).
+- Notify selected household members/caregivers (all verified members for SMS).
 
 No-movement alerts should be emitted only after the monitored window is complete
 and VNMS has enough observed data to support the fact.

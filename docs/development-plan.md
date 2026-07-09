@@ -1,5 +1,10 @@
 # Backend Development Plan
 
+> **Status (2026-07-09):** Phases 1–5 from [`vsrvplan.md`](vsrvplan.md) are
+> implemented. See [`implementation-status.md`](implementation-status.md) for the
+> live API and module list. Remaining work: Phase 6 (push, trial expiry),
+> Phase 7 (UpCloud deploy), OpenAPI, activity from VNMS, payments.
+
 ## Principles
 
 - Build thin vertical slices.
@@ -198,17 +203,24 @@ Before production:
 
 ## Implementation Order Recommendation
 
-For the next concrete coding work:
+**Completed (Phases 1–5):**
 
 1. Project skeleton and health endpoint.
 2. Database migrations and auth/session basics.
 3. Household/device binding model.
 4. VNMS client and device claim.
 5. Device list/detail mobile API.
-6. Monitored-window edit flow.
+6. Monitored-window edit flow + `alert_mode`.
 7. VNMS event consumer.
-8. Alerts/push.
-9. Subscriptions/payments.
+8. Alerts + SMS (push stub remains Phase 6).
 
-This order gives a usable mobile prototype while keeping the core ownership and
+**Next:**
+
+9. Push token Postgres + notification dispatcher.
+10. Trial expiry background job.
+11. Subscriptions/payments provider.
+12. Activity from VNMS.
+13. OpenAPI publication.
+
+This order gave a usable mobile prototype while keeping the core ownership and
 VNMS boundaries correct.
