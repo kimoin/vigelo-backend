@@ -84,11 +84,12 @@ type Alert struct {
 }
 
 type PushToken struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"-"`
-	Platform  string    `json:"platform"`
-	TokenHint string    `json:"token_hint"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	UserID      string    `json:"-"`
+	Platform    string    `json:"platform"`
+	Environment string    `json:"environment,omitempty"`
+	TokenHint   string    `json:"token_hint"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type HouseholdInvite struct {

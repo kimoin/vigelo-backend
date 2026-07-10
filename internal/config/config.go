@@ -27,6 +27,18 @@ type Config struct {
 	GatewayAPIToken  string
 	GatewayAPISender string
 
+	PushProvider string
+	NtfyBaseURL  string
+	NtfyToken    string
+	APNsKeyID    string
+	APNsTeamID   string
+	APNsKeyPath  string
+	APNsBundleID string
+	APNsSandbox  bool
+
+	AdminEmails       []string
+	AuditRetentionDays int
+
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 	InviteTTL       time.Duration
@@ -56,6 +68,18 @@ func Load() Config {
 		GatewayAPIToken:  env("GATEWAYAPI_TOKEN", ""),
 		GatewayAPISender: env("GATEWAYAPI_SENDER", "Vigelo"),
 
+		PushProvider: env("PUSH_PROVIDER", "log"),
+		NtfyBaseURL:  env("NTFY_BASE_URL", "https://ntfy.sh"),
+		NtfyToken:    env("NTFY_TOKEN", ""),
+		APNsKeyID:    env("APNS_KEY_ID", ""),
+		APNsTeamID:   env("APNS_TEAM_ID", ""),
+		APNsKeyPath:  env("APNS_KEY_PATH", ""),
+		APNsBundleID: env("APNS_BUNDLE_ID", ""),
+		APNsSandbox:  envBool("APNS_SANDBOX", false),
+
+		AdminEmails:        splitCSV(env("VSRV_ADMIN_EMAILS", "")),
+		AuditRetentionDays: envInt("VSRV_AUDIT_RETENTION_DAYS", 60),
+
 		AccessTokenTTL:   envDurationHours("VSRV_ACCESS_TOKEN_TTL_HOURS", 1),
 		RefreshTokenTTL:  envDurationDays("VSRV_REFRESH_TOKEN_TTL_DAYS", 30),
 		InviteTTL:        envDurationDays("VSRV_INVITE_TTL_DAYS", 7),
@@ -66,6 +90,25 @@ func Load() Config {
 
 func (c Config) SMSEnabled() bool {
 	return c.GatewayAPIToken != ""
+}
+
+func (c Config) PushEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(c.PushProvider)) {
+	case "", "log":
+		return false
+	default:
+		return true
+	}
+}
+
+func (c Config) IsAdminEmail(email string) bool {
+	email = strings.ToLower(strings.TrimSpace(email))
+	for _, a := range c.AdminEmails {
+		if strings.ToLower(strings.TrimSpace(a)) == email {
+			return true
+		}
+	}
+	return false
 }
 
 func (c Config) EmailEnabled() bool {
@@ -95,6 +138,21 @@ func envInt(key string, def int) int {
 		return def
 	}
 	return n
+}
+
+func envBool(key string, def bool) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if v == "" {
+		return def
+	}
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return def
+	}
 }
 
 func envDurationHours(key string, hours int) time.Duration {

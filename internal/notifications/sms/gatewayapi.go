@@ -1,3 +1,5 @@
+// GatewayAPI sends SMS via gatewayapi.com. Set GATEWAYAPI_TOKEN and
+// GATEWAYAPI_SENDER to enable; without a token VSRV uses sms.LogSender.
 package sms
 
 import (

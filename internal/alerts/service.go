@@ -8,6 +8,7 @@ import (
 
 	"github.com/kimoin/vigelo-backend/internal/devices"
 	"github.com/kimoin/vigelo-backend/internal/domain"
+	"github.com/kimoin/vigelo-backend/internal/audit"
 	"github.com/kimoin/vigelo-backend/internal/notifications"
 	"github.com/kimoin/vigelo-backend/internal/store/postgres"
 	"github.com/kimoin/vigelo-backend/internal/vnmsclient"
@@ -26,6 +27,7 @@ type Service struct {
 	DB               *postgres.Store
 	Devices          *devices.Service
 	Notify           *notifications.Dispatcher
+	Audit            *audit.Logger
 	OfflineThreshold time.Duration
 }
 
@@ -161,6 +163,19 @@ func (s *Service) createFactAlert(ctx context.Context, eventID string, payload j
 }
 
 func (s *Service) dispatch(ctx context.Context, alert domain.Alert, householdID string) {
+	if s.Audit != nil {
+		s.Audit.Record(ctx, audit.Entry{
+			Action:       "alert.created",
+			ResourceType: "alert",
+			ResourceID:   alert.ID,
+			Message:      fmt.Sprintf("%s alert for device %s: %s", alert.Type, alert.DeviceBindingID, alert.Title),
+			Metadata: map[string]any{
+				"alert_type":        alert.Type,
+				"device_binding_id": alert.DeviceBindingID,
+				"household_id":      householdID,
+			},
+		})
+	}
 	if s.Notify != nil {
 		s.Notify.NotifyAlert(ctx, alert, householdID)
 	}

@@ -7,15 +7,19 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kimoin/vigelo-backend/internal/adminstatus"
+	"github.com/kimoin/vigelo-backend/internal/adminweb"
+	"github.com/kimoin/vigelo-backend/internal/audit"
 	"github.com/kimoin/vigelo-backend/internal/auth"
 	"github.com/kimoin/vigelo-backend/internal/alerts"
 	"github.com/kimoin/vigelo-backend/internal/config"
 	"github.com/kimoin/vigelo-backend/internal/devices"
 	"github.com/kimoin/vigelo-backend/internal/notifications"
 	"github.com/kimoin/vigelo-backend/internal/notifications/email"
+	"github.com/kimoin/vigelo-backend/internal/notifications/push"
 	"github.com/kimoin/vigelo-backend/internal/notifications/sms"
-	"github.com/kimoin/vigelo-backend/internal/store/memory"
 	"github.com/kimoin/vigelo-backend/internal/store/postgres"
+	"github.com/kimoin/vigelo-backend/internal/trials"
 	"github.com/kimoin/vigelo-backend/internal/vnmsevents"
 	"github.com/kimoin/vigelo-backend/internal/vnmsclient"
 )
@@ -25,18 +29,20 @@ type healthChecker interface {
 }
 
 type Server struct {
-	log     *slog.Logger
-	cfg     config.Config
-	db      healthChecker
-	pg      *postgres.Store
-	devices *memory.DeviceStore
-	devSvc   *devices.Service
-	alertSvc *alerts.Service
-	mailer   email.Sender
-	cors    map[string]bool
+	log           *slog.Logger
+	cfg           config.Config
+	db            healthChecker
+	pg            *postgres.Store
+	devSvc        *devices.Service
+	alertSvc      *alerts.Service
+	mailer        email.Sender
+	audit         *audit.Logger
+	vnms          *vnmsclient.Client
+	statusChecker *adminstatus.Checker
+	cors          map[string]bool
 }
 
-func New(log *slog.Logger, cfg config.Config, db *postgres.DB, mailer email.Sender, vnms devices.VNMS, smsSender sms.Sender) *Server {
+func New(log *slog.Logger, cfg config.Config, db *postgres.DB, mailer email.Sender, vnms devices.VNMS, vnmsClient *vnmsclient.Client, smsSender sms.Sender, pushSender push.Sender, auditLog *audit.Logger) *Server {
 	allowed := make(map[string]bool, len(cfg.CORSOrigins))
 	for _, o := range cfg.CORSOrigins {
 		allowed[o] = true
@@ -52,6 +58,7 @@ func New(log *slog.Logger, cfg config.Config, db *postgres.DB, mailer email.Send
 	}
 	var devSvc *devices.Service
 	var alertSvc *alerts.Service
+	var statusChecker *adminstatus.Checker
 	if pgStore != nil {
 		devSvc = &devices.Service{
 			DB:               pgStore,
@@ -62,35 +69,52 @@ func New(log *slog.Logger, cfg config.Config, db *postgres.DB, mailer email.Send
 		if smsSender == nil {
 			smsSender = &sms.LogSender{Log: log}
 		}
+		if pushSender == nil {
+			pushSender = &push.LogSender{Log: log}
+		}
+		statusChecker = &adminstatus.Checker{
+			Cfg:    cfg,
+			DB:     db,
+			VNMS:   vnmsClient,
+			Mailer: mailer,
+			SMS:    smsSender,
+			Push:   pushSender,
+		}
 		notify := &notifications.Dispatcher{
 			Log:    log,
 			DB:     pgStore,
 			SMS:    smsSender,
+			Push:   pushSender,
+			Audit:  auditLog,
 			Sender: cfg.GatewayAPISender,
 		}
 		alertSvc = &alerts.Service{
 			DB:               pgStore,
 			Devices:          devSvc,
 			Notify:           notify,
+			Audit:            auditLog,
 			OfflineThreshold: time.Duration(cfg.OfflineHours) * time.Hour,
 		}
 	}
 	return &Server{
-		log:      log,
-		cfg:      cfg,
-		db:       hc,
-		pg:       pgStore,
-		devices:  memory.NewDevices(),
-		devSvc:   devSvc,
-		alertSvc: alertSvc,
-		mailer:   mailer,
-		cors:     allowed,
+		log:           log,
+		cfg:           cfg,
+		db:            hc,
+		pg:            pgStore,
+		devSvc:        devSvc,
+		alertSvc:      alertSvc,
+		mailer:        mailer,
+		audit:         auditLog,
+		vnms:          vnmsClient,
+		statusChecker: statusChecker,
+		cors:          allowed,
 	}
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	s.routes(mux)
+	adminweb.Register(mux)
 	return withCORS(s.cors, mux)
 }
 
@@ -129,18 +153,44 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/devices/{device_binding_id}/alerts/{alert_id}/ack", s.auth(s.handleAckAlert))
 	mux.HandleFunc("GET /v1/devices/{device_binding_id}/subscription", s.auth(s.handleSubscription))
 	mux.HandleFunc("POST /v1/devices/{device_binding_id}/subscription/checkout", s.auth(s.handleCheckout))
+
+	s.adminRoutes(mux)
 }
 
 func (s *Server) StartBackgroundWorkers(ctx context.Context, vnms *vnmsclient.Client) {
-	if s.pg == nil || vnms == nil || s.alertSvc == nil {
+	if s.pg == nil {
 		return
 	}
-	go (&vnmsevents.Consumer{
-		Log:    s.log,
-		DB:     s.pg,
-		VNMS:   vnms,
-		Alerts: s.alertSvc,
+	if vnms != nil && s.alertSvc != nil {
+		go (&vnmsevents.Consumer{
+			Log:    s.log,
+			DB:     s.pg,
+			VNMS:   vnms,
+			Alerts: s.alertSvc,
+		}).Run(ctx)
+	}
+	go (&trials.Worker{
+		Log:   s.log,
+		DB:    s.pg,
+		VNMS:  vnms,
+		Audit: s.audit,
+		Every: time.Hour,
 	}).Run(ctx)
+	if s.audit != nil {
+		go func() {
+			ticker := time.NewTicker(24 * time.Hour)
+			defer ticker.Stop()
+			s.audit.RunRetention(ctx)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					s.audit.RunRetention(ctx)
+				}
+			}
+		}()
+	}
 }
 
 func (s *Server) requirePG(w http.ResponseWriter) bool {

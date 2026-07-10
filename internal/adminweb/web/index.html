@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vigelo VSRV Admin</title>
+  <style>
+    :root { --bg:#0f1419; --card:#1a2332; --text:#e8eef7; --muted:#8b9cb3; --accent:#4da3ff; --ok:#3dd68c; --warn:#ffb020; --err:#ff6b6b; --nested:#141c28; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:1rem 1.5rem; border-bottom:1px solid #2a3548; display:flex; gap:1rem; align-items:center; flex-wrap:wrap; }
+    h1, h2, h3 { margin:0 0 .5rem; }
+    .tabs { display:flex; gap:.5rem; flex-wrap:wrap; }
+    .tabs button { background:var(--card); color:var(--text); border:1px solid #2a3548; padding:.45rem .8rem; border-radius:6px; cursor:pointer; }
+    .tabs button.active { border-color:var(--accent); color:var(--accent); }
+    main { padding:1rem 1.5rem; max-width:1100px; }
+    .card { background:var(--card); border-radius:10px; padding:1rem; margin-bottom:1rem; border:1px solid #2a3548; }
+    input, select, button.action, button.ghost { padding:.45rem .65rem; border-radius:6px; border:1px solid #2a3548; background:#111827; color:var(--text); font-size:.85rem; }
+    button.action { background:var(--accent); border:none; cursor:pointer; color:#001; font-weight:600; }
+    button.ghost { background:transparent; cursor:pointer; }
+    button.action:disabled { opacity:.4; cursor:not-allowed; }
+    button.danger { background:var(--err); color:#fff; }
+    table { width:100%; border-collapse:collapse; font-size:.88rem; }
+    th, td { text-align:left; padding:.5rem; border-bottom:1px solid #2a3548; vertical-align:top; }
+    tr.user-row { cursor:pointer; }
+    tr.user-row:hover { background:#1e2a3d; }
+    tr.user-row.expanded { background:#1e2a3d; }
+    .muted { color:var(--muted); font-size:.85rem; }
+    .status-ok { color:var(--ok); }
+    .status-down, .status-misconfigured, .status-fail { color:var(--err); }
+    .status-log_only, .status-not_active, .status-stub, .status-warn { color:var(--warn); }
+    .login { max-width:360px; margin:4rem auto; }
+    .row { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; align-items:center; }
+    .audit-line { padding:.35rem 0; border-bottom:1px solid #223; }
+    .hidden { display:none; }
+    .counts { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:.75rem; }
+    .count { background:#111827; padding:.75rem; border-radius:8px; }
+    .count strong { display:block; font-size:1.4rem; }
+    .user-detail { background:var(--nested); border:1px solid #2a3548; border-radius:8px; padding:1rem; margin:.5rem 0 1rem; }
+    .household-block { border-left:3px solid var(--accent); padding-left:1rem; margin:1rem 0; }
+    .device-block { background:#0d1219; border-radius:8px; padding:.75rem; margin:.5rem 0; border:1px solid #243044; }
+    .meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.5rem; margin:.75rem 0; }
+    .meta-item { background:#111827; padding:.5rem .65rem; border-radius:6px; font-size:.85rem; }
+    .meta-item strong { display:block; font-size:.75rem; color:var(--muted); font-weight:500; }
+    .chip { display:inline-block; padding:.15rem .45rem; border-radius:4px; background:#243044; font-size:.75rem; margin-right:.25rem; }
+    .chip.status-registered { background:#153528; color:#9ef0c8; border:1px solid var(--ok); }
+    .chip.status-invited { background:#2a2418; color:#ffd88a; border:1px solid var(--warn); }
+    .chip.status-failed { background:#2a1818; color:#ffb0b0; border:1px solid var(--err); }
+    .actions { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.5rem; align-items:center; }
+    .banner { padding:.5rem .75rem; border-radius:6px; margin:.5rem 0; font-size:.9rem; }
+    .banner-trial { background:#2a2418; border:1px solid var(--warn); color:#ffd88a; }
+    .banner-paid { background:#152a22; border:1px solid var(--ok); color:#9ef0c8; }
+    .banner-bad { background:#2a1818; border:1px solid var(--err); color:#ffb0b0; }
+    .banner-none { background:#1a2030; border:1px solid #3a4a60; color:var(--muted); }
+    .member-row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:.25rem 0; }
+    .form-inline { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; margin:.5rem 0; padding:.5rem; background:#0d1219; border-radius:6px; border:1px dashed #2a3548; }
+    .form-inline input, .form-inline select { min-width:120px; }
+    h4 { margin:.75rem 0 .35rem; font-size:.95rem; }
+    .sub-table { width:100%; font-size:.85rem; margin-top:.5rem; }
+    .sub-table th { color:var(--muted); font-weight:500; }
+    .sub-overview { border:2px solid #3a5080; background:#121a28; padding:1rem; border-radius:10px; margin:1rem 0; }
+    .status-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:.75rem; }
+    .status-card { background:var(--card); border-radius:10px; padding:.75rem; border:1px solid #2a3548; min-height:88px; display:flex; flex-direction:column; gap:.35rem; }
+    .status-card strong { font-size:.9rem; }
+    .status-card .status-label { font-size:.95rem; font-weight:600; text-transform:lowercase; }
+    .status-card .muted { font-size:.8rem; line-height:1.3; }
+    @media (max-width:900px) { .status-grid { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:560px) { .status-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div id="login-view" class="login card">
+    <h2>VSRV Admin</h2>
+    <p class="muted">Sign in with an account listed in <code>VSRV_ADMIN_EMAILS</code>.</p>
+    <div class="row"><input id="email" type="email" placeholder="Email" style="flex:1" /></div>
+    <div class="row"><input id="password" type="password" placeholder="Password" style="flex:1" /></div>
+    <div class="row"><button class="action" id="login-btn">Sign in</button></div>
+    <p id="login-error" class="status-down"></p>
+  </div>
+
+  <div id="app-view" class="hidden">
+    <header>
+      <h1>Vigelo VSRV Admin</h1>
+      <nav class="tabs" id="tabs"></nav>
+      <span class="muted" id="admin-user"></span>
+      <button class="action" id="logout-btn" style="margin-left:auto">Logout</button>
+    </header>
+    <main id="panel"></main>
+  </div>
+
+<script>
+const API = localStorage.getItem('vsrv_api_base') || (location.origin.includes('8090') ? location.origin : 'http://127.0.0.1:8090');
+let token = localStorage.getItem('vsrv_admin_token') || '';
+const tabs = [
+  { id:'users', label:'Users' },
+  { id:'status', label:'Status' },
+  { id:'audit', label:'Audit log' },
+  { id:'dashboard', label:'Dashboard' },
+];
+let activeTab = 'users';
+let expandedUserId = null;
+let userSearchQ = '';
+
+async function api(path, opts={}) {
+  const headers = { 'Content-Type':'application/json', ...(opts.headers||{}) };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  const res = await fetch(API + path, { ...opts, headers });
+  const text = await res.text();
+  let body = {};
+  try { body = text ? JSON.parse(text) : {}; } catch { body = { raw:text }; }
+  if (!res.ok) throw new Error(body?.error?.message || res.statusText);
+  return body;
+}
+
+function show(el, on) { el.classList.toggle('hidden', !on); }
+function fmt(ts) { return ts ? new Date(ts).toLocaleString() : '—'; }
+function fmtDate(ts) { return ts ? new Date(ts).toLocaleDateString() : '—'; }
+
+async function tryBoot() {
+  if (!token) return showLogin();
+  try {
+    const me = await api('/v1/admin/me');
+    if (!me.admin) throw new Error('Not an admin');
+    document.getElementById('admin-user').textContent = me.user.email;
+    show(document.getElementById('login-view'), false);
+    show(document.getElementById('app-view'), true);
+    renderTabs();
+    renderPanel();
+  } catch {
+    token = '';
+    localStorage.removeItem('vsrv_admin_token');
+    showLogin();
+  }
+}
+
+function showLogin() {
+  show(document.getElementById('login-view'), true);
+  show(document.getElementById('app-view'), false);
+}
+
+document.getElementById('login-btn').onclick = async () => {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  document.getElementById('login-error').textContent = '';
+  try {
+    const res = await api('/v1/auth/login', { method:'POST', body: JSON.stringify({ email, password }) });
+    token = res.access_token;
+    localStorage.setItem('vsrv_admin_token', token);
+    await tryBoot();
+  } catch (e) {
+    document.getElementById('login-error').textContent = e.message;
+  }
+};
+
+document.getElementById('logout-btn').onclick = () => {
+  token = '';
+  localStorage.removeItem('vsrv_admin_token');
+  showLogin();
+};
+
+function renderTabs() {
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = tabs.map(t => `<button class="${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}</button>`).join('');
+  nav.querySelectorAll('button').forEach(b => b.onclick = () => { activeTab = b.dataset.tab; renderTabs(); renderPanel(); });
+}
+
+async function renderPanel() {
+  const panel = document.getElementById('panel');
+  panel.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    if (activeTab === 'users') panel.innerHTML = await renderUsers();
+    else if (activeTab === 'status') panel.innerHTML = await renderStatus();
+    else if (activeTab === 'audit') panel.innerHTML = await renderAudit();
+    else if (activeTab === 'dashboard') panel.innerHTML = await renderDashboard();
+    bindPanelActions();
+  } catch (e) {
+    panel.innerHTML = `<p class="status-down">${e.message}</p>`;
+  }
+}
+
+async function refreshExpandedUser() {
+  if (!expandedUserId) return renderPanel();
+  const panel = document.getElementById('panel');
+  panel.innerHTML = await renderUsers();
+  bindPanelActions();
+}
+
+function paymentBanner(d) {
+  const summary = d.payment_summary || d.subscription_status || 'unknown';
+  let cls = 'banner-none';
+  if (d.cancelled_at) cls = 'banner-bad';
+  else if (d.subscription_status === 'trialing') cls = 'banner-trial';
+  else if (d.subscription_status === 'active') cls = 'banner-paid';
+  else if (d.subscription_status === 'past_due' || d.service_status === 'service_suspended') cls = 'banner-bad';
+  const provider = d.payment_provider ? ` · ${d.payment_provider}` : '';
+  const subId = d.provider_subscription_id ? ` · sub ${d.provider_subscription_id}` : '';
+  return `<div class="banner ${cls}"><strong>Payment:</strong> ${summary}${provider}${subId}</div>`;
+}
+
+function deviceActions(d, hhId, allHouseholds) {
+  if (d.removed) return '<span class="muted">removed</span>';
+  const id = d.binding_id;
+  const otherHH = (allHouseholds || []).filter(h => h.id !== hhId);
+  const moveOpts = otherHH.length
+    ? `<select data-move-select="${id}">${otherHH.map(h => `<option value="${h.id}">${h.name}</option>`).join('')}</select>`
+    : '<span class="muted">no other households</span>';
+  return `<div class="actions">
+    <button class="action" data-dev-enable="${id}">Enable (VNMS)</button>
+    <button class="action" data-dev-disable="${id}">Disable (VNMS)</button>
+    <button class="action" data-dev-unprovision="${id}">Unprovision</button>
+    <span class="muted">|</span>
+    <button class="action" data-dev-trial="${id}" data-trial-days="30">+30d trial</button>
+    <button class="ghost" data-dev-trial="${id}" data-trial-days="7">+7d</button>
+    <input type="number" min="1" max="365" value="14" style="width:60px" data-trial-custom="${id}" title="Custom trial days" />
+    <button class="ghost" data-dev-trial-custom="${id}">Extend trial</button>
+    <button class="action" data-dev-activate="${id}">Mark paid (1 mo)</button>
+    <span class="muted">|</span>
+    ${moveOpts}
+    <button class="ghost" data-dev-move="${id}" ${otherHH.length?'':'disabled'}>Move device</button>
+    <button class="danger action" data-dev-delete="${id}">Delete device</button>
+  </div>`;
+}
+
+function renderDevice(d, hhId, allHouseholds) {
+  const trialLeft = d.trial_ends_at ? `Trial ends ${fmtDate(d.trial_ends_at)}` : 'No trial end date';
+  const period = d.current_period_end ? `Paid until ${fmtDate(d.current_period_end)}` : '—';
+  return `<div class="device-block">
+    <strong>${d.display_name}</strong> <span class="muted">${d.device_id}</span>
+    ${d.removed ? '<span class="chip status-down">removed</span>' : ''}
+    ${paymentBanner(d)}
+    <div class="meta-grid">
+      <div class="meta-item"><strong>Subscription</strong>${d.subscription_status || 'none'}</div>
+      <div class="meta-item"><strong>Service</strong>${d.service_status || '—'}</div>
+      <div class="meta-item"><strong>Plan</strong>${d.plan_code || '—'}</div>
+      <div class="meta-item"><strong>Trial</strong>${trialLeft}</div>
+      <div class="meta-item"><strong>Billing period</strong>${fmtDate(d.current_period_start)} → ${period}</div>
+      <div class="meta-item"><strong>Cancelled</strong>${fmtDate(d.cancelled_at)}</div>
+      <div class="meta-item"><strong>Room</strong>${d.room_label || '—'}</div>
+      <div class="meta-item"><strong>Last seen</strong>${fmt(d.last_contact_at)}</div>
+      <div class="meta-item"><strong>VNMS</strong>${d.vnms_lifecycle || '—'}</div>
+      <div class="meta-item"><strong>Claimed by</strong>${d.claimed_by_email || '—'}</div>
+    </div>
+    ${deviceActions(d, hhId, allHouseholds)}
+  </div>`;
+}
+
+function renderMemberRow(m, hhId) {
+  const role = m.role || 'member';
+  const name = m.display_name ? `${m.email} (${m.display_name})` : m.email;
+  let statusChip;
+  if (m.status === 'registered') {
+    statusChip = `<span class="chip status-registered">Registered · ${fmt(m.status_at)}</span>`;
+  } else if (m.status === 'invited') {
+    statusChip = `<span class="chip status-invited">Invited · ${fmt(m.invited_at || m.status_at)}</span>`;
+    if (m.expires_at) statusChip += ` <span class="muted">expires ${fmt(m.expires_at)}</span>`;
+  } else if (m.status === 'failed') {
+    statusChip = `<span class="chip status-failed">Failed · expired ${fmt(m.expires_at || m.status_at)}</span>`;
+    if (m.invited_at) statusChip += ` <span class="muted">invited ${fmt(m.invited_at)}</span>`;
+  } else {
+    statusChip = `<span class="chip">${m.status || 'unknown'}</span>`;
+  }
+  const removeBtn = m.user_id
+    ? `<button class="ghost danger" data-member-remove="${m.user_id}" data-hh-id="${hhId}" title="Remove member">✕</button>`
+    : '';
+  return `<div class="member-row">
+    <span>${name}</span>
+    <span class="chip">${role}</span>
+    ${statusChip}
+    ${removeBtn}
+  </div>`;
+}
+
+function renderHousehold(hh, user) {
+  const members = (hh.members || []).map(m => renderMemberRow(m, hh.id)).join('');
+  const devices = (hh.devices || []).filter(d => !d.removed);
+  const removed = (hh.devices || []).filter(d => d.removed);
+  const allHH = user.households || [];
+  const hhSubSummary = devices.length
+    ? devices.map(d => paymentBanner(d)).join('')
+    : '<div class="banner banner-none">No devices in this household</div>';
+  return `<div class="household-block">
+    <h3>${hh.name} <span class="muted">user role: ${hh.user_role}</span></h3>
+    <div class="muted">${hh.id} · ${hh.timezone}</div>
+    ${hhSubSummary}
+
+    <h4>Members & caregivers</h4>
+    ${members || '<p class="muted">No members listed</p>'}
+    <div class="form-inline">
+      <input placeholder="Email" data-member-email="${hh.id}" style="flex:1;min-width:180px" />
+      <select data-member-role="${hh.id}">
+        <option value="caregiver">caregiver</option>
+        <option value="admin">admin</option>
+        <option value="member">member</option>
+      </select>
+      <label class="muted"><input type="checkbox" data-member-invite="${hh.id}" /> invite if new</label>
+      <button class="action" data-member-add="${hh.id}">Add member</button>
+    </div>
+
+    <div class="actions">
+      <button class="danger action" data-hh-delete="${hh.id}">Archive household</button>
+    </div>
+
+    <h4>Devices (${devices.length})</h4>
+    <div class="form-inline">
+      <input placeholder="Device ID" data-prov-device-id="${hh.id}" />
+      <input placeholder="Enrollment secret" data-prov-secret="${hh.id}" type="password" style="flex:1;min-width:160px" />
+      <input placeholder="Display name" data-prov-name="${hh.id}" />
+      <input placeholder="Room" data-prov-room="${hh.id}" />
+      <button class="action" data-prov-device="${hh.id}">Provision device</button>
+    </div>
+    ${devices.length ? devices.map(d => renderDevice(d, hh.id, allHH)).join('') : '<p class="muted">No active devices</p>'}
+    ${removed.length ? `<details><summary class="muted">Removed devices (${removed.length})</summary>${removed.map(d => renderDevice(d, hh.id, allHH)).join('')}</details>` : ''}
+  </div>`;
+}
+
+function renderUserSubscriptions(u) {
+  const subs = u.subscriptions || [];
+  if (!subs.length) {
+    const hasHH = (u.households || []).length > 0;
+    const hint = hasHH
+      ? 'Provision a device under a household below to start a trial and see payment status.'
+      : 'Create a household and provision a device to see trial & payment status.';
+    return `<div class="sub-overview">
+      <h3>Trial &amp; payment status</h3>
+      <div class="banner banner-none"><strong>No devices</strong> — ${hint}</div>
+    </div>`;
+  }
+  const rows = subs.map(d => `<tr>
+    <td><strong>${d.display_name}</strong><br><span class="muted">${d.device_id}</span></td>
+    <td>${d.household_name || '—'}</td>
+    <td>${paymentBanner(d)}</td>
+    <td>${d.subscription_status || 'none'}</td>
+    <td>${d.service_status || '—'}</td>
+    <td>${fmtDate(d.trial_ends_at)}</td>
+    <td>${fmtDate(d.current_period_end)}</td>
+    <td>${d.payment_provider || '—'}</td>
+  </tr>`).join('');
+  return `<div class="sub-overview">
+    <h3>Trial &amp; payment status (${subs.length} device${subs.length > 1 ? 's' : ''})</h3>
+    <table class="sub-table">
+      <thead><tr>
+        <th>Device</th><th>Household</th><th>Summary</th><th>Status</th><th>Service</th>
+        <th>Trial ends</th><th>Paid until</th><th>Provider</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderUserDetail(u) {
+  const apps = (u.push_tokens || []).map(t =>
+    `<span class="chip">${t.platform} (${t.environment})</span>`).join(' ') || '—';
+  const sessions = (u.sessions || []).slice(0, 5).map(s =>
+    `<span class="chip">${s.platform || 'web'} ${s.revoked ? 'revoked' : 'active'} · ${fmt(s.last_seen_at)}</span>`).join(' ') || '—';
+
+  return `<div class="user-detail">
+    <div class="meta-grid">
+      <div class="meta-item"><strong>Status</strong>${u.disabled_at ? '<span class="status-down">disabled</span>' : '<span class="status-ok">active</span>'}</div>
+      <div class="meta-item"><strong>Email verified</strong>${u.email_verified ? 'yes' : 'no'}</div>
+      <div class="meta-item"><strong>Last login</strong>${fmt(u.last_login_at)}</div>
+      <div class="meta-item"><strong>Registered</strong>${fmt(u.created_at)}</div>
+      <div class="meta-item"><strong>Phone</strong>${u.phone || '—'}</div>
+      <div class="meta-item"><strong>Timezone</strong>${u.timezone || '—'}</div>
+    </div>
+    <div style="margin:.75rem 0"><strong>Installed apps (push):</strong> ${apps}</div>
+    <div style="margin:.75rem 0"><strong>Recent sessions:</strong> ${sessions}</div>
+    <div class="actions">
+      <button class="action" data-user-disable="${u.id}" ${u.disabled_at?'disabled':''}>Disable user</button>
+      <button class="action" data-user-enable="${u.id}" ${!u.disabled_at?'disabled':''}>Enable user</button>
+      <button class="ghost" data-create-hh="${u.id}">+ New household</button>
+    </div>
+    ${renderUserSubscriptions(u)}
+    <h3 style="margin-top:1.25rem">Households &amp; devices</h3>
+    ${(u.households || []).length ? (u.households || []).map(h => renderHousehold(h, u)).join('') : '<p class="muted">No households</p>'}
+  </div>`;
+}
+
+async function renderUsers() {
+  const data = await api('/v1/admin/users?limit=50&q=' + encodeURIComponent(userSearchQ));
+  let detailHtml = '';
+  if (expandedUserId) {
+    try {
+      const u = await api('/v1/admin/users/' + expandedUserId);
+      detailHtml = renderUserDetail(u);
+    } catch (e) {
+      detailHtml = `<p class="status-down">${e.message}</p>`;
+    }
+  }
+
+  const rows = (data.users || []).map(u => {
+    const expanded = u.id === expandedUserId;
+    return `<tr class="user-row ${expanded?'expanded':''}" data-user-toggle="${u.id}">
+      <td><span style="font-size:1.1rem">${expanded?'▼':'▶'}</span> ${u.email}</td>
+      <td>${u.display_name}</td>
+      <td>${u.disabled_at ? '<span class="status-down">disabled</span>' : 'active'}</td>
+      <td>${fmt(u.last_login_at)}</td>
+      <td>${u.households} households · ${u.devices} devices</td>
+      <td><span class="chip">${u.subscription_summary || (u.devices ? '—' : 'no devices')}</span></td>
+      <td>${(u.push_platforms||[]).map(p=>`<span class="chip">${p}</span>`).join('')}</td>
+    </tr>
+    ${expanded ? `<tr><td colspan="7">${detailHtml}</td></tr>` : ''}`;
+  }).join('');
+
+  return `<h2>Users (${data.total||0})</h2>
+    <p class="muted">Click a user to expand households, devices, subscriptions, and actions.</p>
+    <div class="row">
+      <input id="user-q" value="${userSearchQ}" placeholder="Search email or name…" style="flex:1" />
+      <button class="action" data-user-search>Search</button>
+    </div>
+    <table>
+      <thead><tr><th>User</th><th>Name</th><th>Status</th><th>Last login</th><th>Summary</th><th>Subscriptions</th><th>Apps</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" class="muted">No users</td></tr>'}</tbody>
+    </table>`;
+}
+
+async function renderStatus() {
+  const data = await api('/v1/admin/status');
+  const cards = (data.services||[]).map(s => `
+    <div class="status-card">
+      <strong>${s.name}</strong>
+      <div class="status-label status-${s.status}">${s.status}</div>
+      <div class="muted">${s.detail||''}</div>
+    </div>`).join('');
+  return `<h2>Service status</h2><div class="status-grid">${cards || '<p class="muted">No services</p>'}</div>`;
+}
+
+async function renderDashboard() {
+  const data = await api('/v1/admin/dashboard');
+  const c = data.counts || {};
+  return `<h2>Dashboard</h2><div class="counts">
+    ${Object.entries(c).map(([k,v])=>`<div class="count"><strong>${v}</strong>${k}</div>`).join('')}
+  </div>`;
+}
+
+async function renderAudit(q='') {
+  const data = await api('/v1/admin/audit-log?limit=100&q=' + encodeURIComponent(q));
+  const lines = (data.entries||[]).map(e => `
+    <div class="audit-line">
+      <span class="muted">${fmt(e.created_at)}</span> — ${e.message || e.action}
+    </div>`).join('');
+  return `<h2>Audit log (${data.total||0})</h2>
+    <div class="row"><input id="audit-q" value="${q}" placeholder="Search log…" style="flex:1" />
+    <button class="action" data-audit-search>Search</button></div>
+    <div class="card">${lines || '<p class="muted">No entries</p>'}</div>`;
+}
+
+function bindPanelActions() {
+  const panel = document.getElementById('panel');
+
+  panel.querySelector('[data-audit-search]')?.addEventListener('click', async () => {
+    panel.innerHTML = await renderAudit(document.getElementById('audit-q').value);
+    bindPanelActions();
+  });
+
+  panel.querySelector('[data-user-search]')?.addEventListener('click', async () => {
+    userSearchQ = document.getElementById('user-q').value;
+    expandedUserId = null;
+    panel.innerHTML = await renderUsers();
+    bindPanelActions();
+  });
+
+  panel.querySelectorAll('[data-user-toggle]').forEach(row => {
+    row.onclick = async () => {
+      const id = row.dataset.userToggle;
+      expandedUserId = expandedUserId === id ? null : id;
+      panel.innerHTML = await renderUsers();
+      bindPanelActions();
+    };
+  });
+
+  panel.querySelectorAll('[data-user-disable]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    try {
+      await api(`/v1/admin/users/${b.dataset.userDisable}/disable`, { method:'POST' });
+      await refreshExpandedUser();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  panel.querySelectorAll('[data-user-enable]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    try {
+      await api(`/v1/admin/users/${b.dataset.userEnable}/enable`, { method:'POST' });
+      await refreshExpandedUser();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  panel.querySelectorAll('[data-create-hh]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const name = prompt('Household name:', 'Home');
+    if (!name) return;
+    await api('/v1/admin/households', { method:'POST', body: JSON.stringify({ name, owner_user_id: b.dataset.createHh }) });
+    expandedUserId = b.dataset.createHh;
+    await refreshExpandedUser();
+  });
+
+  panel.querySelectorAll('[data-hh-delete]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    if (!confirm('Archive this household and remove its devices?')) return;
+    await api(`/v1/admin/households/${b.dataset.hhDelete}`, { method:'DELETE' });
+    await refreshExpandedUser();
+  });
+
+  panel.querySelectorAll('[data-member-add]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const hhId = b.dataset.memberAdd;
+    const email = panel.querySelector(`[data-member-email="${hhId}"]`)?.value?.trim();
+    const role = panel.querySelector(`[data-member-role="${hhId}"]`)?.value || 'caregiver';
+    const invite = panel.querySelector(`[data-member-invite="${hhId}"]`)?.checked;
+    if (!email) return alert('Enter email');
+    try {
+      const res = await api(`/v1/admin/households/${hhId}/members`, {
+        method:'POST', body: JSON.stringify({ email, role, invite_if_missing: invite })
+      });
+      if (res.invite_token) {
+        // Invite is visible in the member list with Invited status.
+      }
+      await refreshExpandedUser();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  panel.querySelectorAll('[data-member-remove]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    if (!confirm('Remove this member from household?')) return;
+    const { memberRemove: userId, hhId } = b.dataset;
+    await api(`/v1/admin/households/${hhId}/members/${userId}`, { method:'DELETE' });
+    await refreshExpandedUser();
+  });
+
+  panel.querySelectorAll('[data-prov-device]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const hhId = b.dataset.provDevice;
+    const device_id = panel.querySelector(`[data-prov-device-id="${hhId}"]`)?.value?.trim();
+    const enrollment_secret = panel.querySelector(`[data-prov-secret="${hhId}"]`)?.value?.trim();
+    const display_name = panel.querySelector(`[data-prov-name="${hhId}"]`)?.value?.trim();
+    const room_or_location_label = panel.querySelector(`[data-prov-room="${hhId}"]`)?.value?.trim();
+    if (!device_id || !enrollment_secret) return alert('Device ID and enrollment secret required');
+    try {
+      await api(`/v1/admin/households/${hhId}/devices`, {
+        method:'POST', body: JSON.stringify({ device_id, enrollment_secret, display_name, room_or_location_label })
+      });
+      await refreshExpandedUser();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  panel.querySelectorAll('[data-dev-enable]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    await api(`/v1/admin/devices/${b.dataset.devEnable}/enable`, { method:'POST' });
+    await refreshExpandedUser();
+  });
+  panel.querySelectorAll('[data-dev-disable]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    await api(`/v1/admin/devices/${b.dataset.devDisable}/disable`, { method:'POST' });
+    await refreshExpandedUser();
+  });
+  panel.querySelectorAll('[data-dev-unprovision]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    if (!confirm('Unprovision device in VNMS?')) return;
+    await api(`/v1/admin/devices/${b.dataset.devUnprovision}/unprovision`, { method:'POST' });
+    await refreshExpandedUser();
+  });
+  panel.querySelectorAll('[data-dev-trial]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const days = b.dataset.trialDays || '30';
+    await api(`/v1/admin/devices/${b.dataset.devTrial}/extend-trial?days=${days}`, { method:'POST' });
+    await refreshExpandedUser();
+  });
+  panel.querySelectorAll('[data-dev-trial-custom]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const id = b.dataset.devTrialCustom;
+    const days = parseInt(panel.querySelector(`[data-trial-custom="${id}"]`)?.value, 10);
+    if (!days || days < 1) return alert('Enter valid days');
+    await api(`/v1/admin/devices/${id}/extend-trial`, { method:'POST', body: JSON.stringify({ days }) });
+    await refreshExpandedUser();
+  });
+  panel.querySelectorAll('[data-dev-activate]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    await api(`/v1/admin/devices/${b.dataset.devActivate}/activate-subscription`, { method:'POST', body: JSON.stringify({ months: 1 }) });
+    await refreshExpandedUser();
+  });
+  panel.querySelectorAll('[data-dev-delete]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    if (!confirm('Delete device binding from household?')) return;
+    await api(`/v1/admin/devices/${b.dataset.devDelete}`, { method:'DELETE' });
+    await refreshExpandedUser();
+  });
+  panel.querySelectorAll('[data-dev-move]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const id = b.dataset.devMove;
+    const select = panel.querySelector(`[data-move-select="${id}"]`);
+    const householdId = select?.value?.trim();
+    if (!householdId) return alert('Select target household');
+    await api(`/v1/admin/devices/${id}/move`, { method:'POST', body: JSON.stringify({ household_id: householdId }) });
+    await refreshExpandedUser();
+  });
+}
+
+tryBoot();
+</script>
+</body>
+</html>

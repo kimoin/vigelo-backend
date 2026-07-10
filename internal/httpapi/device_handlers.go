@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kimoin/vigelo-backend/internal/audit"
 	"github.com/kimoin/vigelo-backend/internal/authz"
 	"github.com/kimoin/vigelo-backend/internal/devices"
 	"github.com/kimoin/vigelo-backend/internal/domain"
@@ -94,6 +95,14 @@ func (s *Server) registerDevice(w http.ResponseWriter, r *http.Request, fromQR b
 	if writeDeviceError(w, err) {
 		return
 	}
+	userEmail, _ := s.pg.GetUserEmail(r.Context(), userID)
+	hhName, _ := s.pg.GetHouseholdName(r.Context(), householdID)
+	s.recordAudit(r, audit.Entry{
+		ActorUserID: userID, Action: "device.provisioned",
+		ResourceType: "device_binding", ResourceID: dev.ID,
+		Message: fmt.Sprintf("%s provisioned device %s to household %q", userEmail, dev.DeviceID, hhName),
+		Metadata: map[string]any{"device_id": dev.DeviceID, "household_id": householdID},
+	})
 	writeJSON(w, http.StatusCreated, dev)
 }
 
@@ -326,40 +335,53 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRegisterPushToken(w http.ResponseWriter, r *http.Request) {
+	if !s.requirePG(w) {
+		return
+	}
 	userID := userIDFromContext(r.Context())
 	var req struct {
-		Platform string `json:"platform"`
-		Token    string `json:"token"`
+		Platform    string `json:"platform"`
+		Token       string `json:"token"`
+		Environment string `json:"environment"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if req.Platform == "" || req.Token == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request", "platform and token are required", "")
+	if !validPushPlatform(req.Platform) || req.Token == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "platform and token are required", "token")
 		return
 	}
-	s.devices.Lock()
-	defer s.devices.Unlock()
-	pt := &domain.PushToken{
-		ID:        s.devices.NewID("push"),
-		UserID:    userID,
-		Platform:  req.Platform,
-		TokenHint: tokenHint(req.Token),
-		CreatedAt: time.Now().UTC(),
+	sessionID := ""
+	if token := accessTokenFromContext(r.Context()); token != "" {
+		if _, sid, err := s.pg.ResolveAccessToken(r.Context(), token); err == nil {
+			sessionID = sid
+		}
 	}
-	s.devices.PushTokens()[pt.ID] = pt
+	pt, err := s.pg.UpsertPushToken(r.Context(), userID, sessionID, req.Platform, req.Token, req.Environment)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "could not register push token", "")
+		return
+	}
 	writeJSON(w, http.StatusCreated, pt)
 }
 
 func (s *Server) handleDeletePushToken(w http.ResponseWriter, r *http.Request) {
+	if !s.requirePG(w) {
+		return
+	}
 	userID := userIDFromContext(r.Context())
 	id := r.PathValue("push_token_id")
-	s.devices.Lock()
-	defer s.devices.Unlock()
-	if pt, ok := s.devices.PushTokens()[id]; ok && pt.UserID == userID {
-		delete(s.devices.PushTokens(), id)
-	}
+	_ = s.pg.DeletePushToken(r.Context(), userID, id)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func validPushPlatform(platform string) bool {
+	switch platform {
+	case "ntfy", "web", "ios", "android", "unifiedpush":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) authorizedDevice(w http.ResponseWriter, r *http.Request) (*domain.DeviceBinding, bool) {

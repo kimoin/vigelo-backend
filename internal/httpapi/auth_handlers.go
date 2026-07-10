@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kimoin/vigelo-backend/internal/domain"
+	"github.com/kimoin/vigelo-backend/internal/audit"
 	"github.com/kimoin/vigelo-backend/internal/notifications/email"
 )
 
@@ -60,6 +61,12 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 		Text:    fmt.Sprintf("Welcome to Vigelo. Verify your email: %s", verifyURL),
 	})
 
+	s.recordAudit(r, audit.Entry{
+		ActorUserID: res.User.ID, Action: "user.signup",
+		ResourceType: "user", ResourceID: res.User.ID,
+		Message: fmt.Sprintf("%s registered to the service", req.Email),
+	})
+
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"access_token":  res.Tokens.AccessToken,
 		"refresh_token": res.Tokens.RefreshToken,
@@ -83,6 +90,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if writeStoreError(w, err) {
 		return
 	}
+	s.recordAudit(r, audit.Entry{
+		ActorUserID: user.ID, Action: "user.login",
+		ResourceType: "user", ResourceID: user.ID,
+		Message: fmt.Sprintf("%s logged in", user.Email),
+	})
 	writeJSON(w, http.StatusOK, map[string]any{
 		"access_token":  tokens.AccessToken,
 		"refresh_token": tokens.RefreshToken,

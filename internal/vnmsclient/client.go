@@ -108,6 +108,18 @@ func (c *Client) Enable(ctx context.Context, deviceID string) error {
 	return c.post(ctx, fmt.Sprintf("/v1/devices/%s/enable", deviceID), nil, nil)
 }
 
+func (c *Client) Disable(ctx context.Context, deviceID string) error {
+	return c.post(ctx, fmt.Sprintf("/v1/devices/%s/disable", deviceID), nil, nil)
+}
+
+func (c *Client) Unprovision(ctx context.Context, deviceID string) error {
+	return c.post(ctx, fmt.Sprintf("/v1/devices/%s/unprovision", deviceID), nil, nil)
+}
+
+func (c *Client) Health(ctx context.Context) error {
+	return c.do(ctx, http.MethodGet, "/healthz", nil, nil)
+}
+
 func (c *Client) BatchGet(ctx context.Context, deviceIDs []string) (map[string]DeviceState, error) {
 	var resp struct {
 		Devices          []DeviceState `json:"devices"`

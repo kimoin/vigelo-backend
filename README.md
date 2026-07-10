@@ -31,6 +31,7 @@ local E2E steps.
 - [`docs/architecture.md`](docs/architecture.md) — service boundaries
 - [`docs/mobile-api.md`](docs/mobile-api.md) — mobile API direction
 - [`docs/vnms-integration.md`](docs/vnms-integration.md) — VNMS integration
+- [`docs/upcloud-deploy.md`](docs/upcloud-deploy.md) — **UpCloud: VSRV + VNMS two-VM setup**
 - [`docs/alerts-notifications.md`](docs/alerts-notifications.md) — alerts and SMS
 - [`docs/development-plan.md`](docs/development-plan.md) — phased plan
 
@@ -53,6 +54,9 @@ make run
 
 Default listener: `http://127.0.0.1:8090`
 
+**Admin console:** `http://127.0.0.1:8090/admin/` — sign in with an account listed in
+`VSRV_ADMIN_EMAILS` (see `.env.example`).
+
 `VSRV_DATABASE_URL` is required. Set `VNMS_BASE_URL` and `VNMS_HTTP_TOKEN` for
 device enrollment. Without VNMS, auth and households work; device claim returns
 service unavailable.
@@ -70,12 +74,14 @@ service unavailable.
 
 ### Deploy layout
 
-Production-style Compose (Postgres + migrate + vsrv + Caddy) lives under
-`deploy/`. See `deploy/.env.example`.
+Production Compose (Postgres + migrate + vsrv + Caddy) lives under `deploy/`.
+See [`deploy/README.md`](deploy/README.md) and [`docs/upcloud-deploy.md`](docs/upcloud-deploy.md)
+for the full UpCloud + VNMS integration guide.
 
 ## Current limitations
 
 - Activity API returns stub data (VNMS activity not wired yet).
-- Push tokens are in-memory; no real push provider yet (Phase 6).
+- Push tokens are in Postgres; use `PUSH_PROVIDER=ntfy` for real delivery (or `apns` when native app ships).
+- SMS logs only until `GATEWAYAPI_TOKEN` is set.
 - Payments are demo checkout only; no payment provider.
 - OpenAPI spec for VSRV not published yet.

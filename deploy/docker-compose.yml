@@ -1,5 +1,6 @@
-# Production-style single-host deployment for the VSRV UpCloud VM.
-# Postgres stays internal; Caddy terminates TLS for the public API.
+# Production deployment for the VSRV UpCloud VM.
+# Postgres is internal; Caddy terminates TLS for the public API.
+# VNMS runs on a separate VM — set VNMS_BASE_URL to its private-network address.
 services:
   postgres:
     image: postgres:16
@@ -51,12 +52,36 @@ services:
       VSRV_ADDR: ":8090"
       VSRV_DATABASE_URL: postgres://${POSTGRES_USER:-vsrv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vsrv}?sslmode=disable
       VSRV_PUBLIC_URL: ${VSRV_PUBLIC_URL:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-}
       VSRV_CORS_ORIGIN: ${VSRV_CORS_ORIGIN:-}
       VSRV_LOG_LEVEL: ${VSRV_LOG_LEVEL:-info}
       OFFLINE_THRESHOLD_HOURS: ${OFFLINE_THRESHOLD_HOURS:-3}
       DEFAULT_TRIAL_DAYS: ${DEFAULT_TRIAL_DAYS:-30}
-      VNMS_BASE_URL: ${VNMS_BASE_URL:-}
-      VNMS_HTTP_TOKEN: ${VNMS_HTTP_TOKEN:-}
+      VNMS_BASE_URL: ${VNMS_BASE_URL:?set VNMS_BASE_URL in deploy/.env}
+      VNMS_HTTP_TOKEN: ${VNMS_HTTP_TOKEN:?set VNMS_HTTP_TOKEN in deploy/.env}
+      VNMS_TLS_CA: ${VNMS_TLS_CA:-}
+      MAILERSEND_API_TOKEN: ${MAILERSEND_API_TOKEN:-}
+      MAILERSEND_FROM_EMAIL: ${MAILERSEND_FROM_EMAIL:-notify@vigelo.fi}
+      MAILERSEND_FROM_NAME: ${MAILERSEND_FROM_NAME:-Vigelo}
+      GATEWAYAPI_TOKEN: ${GATEWAYAPI_TOKEN:-}
+      GATEWAYAPI_SENDER: ${GATEWAYAPI_SENDER:-Vigelo}
+      PUSH_PROVIDER: ${PUSH_PROVIDER:-log}
+      NTFY_BASE_URL: ${NTFY_BASE_URL:-https://ntfy.sh}
+      NTFY_TOKEN: ${NTFY_TOKEN:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_KEY_PATH: ${APNS_KEY_PATH:-}
+      APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-}
+      APNS_SANDBOX: ${APNS_SANDBOX:-false}
+      VSRV_ADMIN_EMAILS: ${VSRV_ADMIN_EMAILS:-}
+      VSRV_AUDIT_RETENTION_DAYS: ${VSRV_AUDIT_RETENTION_DAYS:-60}
+      VSRV_ACCESS_TOKEN_TTL_HOURS: ${VSRV_ACCESS_TOKEN_TTL_HOURS:-1}
+      VSRV_REFRESH_TOKEN_TTL_DAYS: ${VSRV_REFRESH_TOKEN_TTL_DAYS:-30}
+      VSRV_INVITE_TTL_DAYS: ${VSRV_INVITE_TTL_DAYS:-7}
+      VSRV_VERIFY_EMAIL_TTL_HOURS: ${VSRV_VERIFY_EMAIL_TTL_HOURS:-48}
+      VSRV_RESET_PASSWORD_TTL_HOURS: ${VSRV_RESET_PASSWORD_TTL_HOURS:-2}
+    volumes:
+      - ./certs:/certs:ro
     expose:
       - "8090"
     restart: unless-stopped
@@ -68,6 +93,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      VSRV_HOSTNAME: ${VSRV_HOSTNAME:?set VSRV_HOSTNAME in deploy/.env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

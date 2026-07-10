@@ -8,6 +8,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/vsrv ./
 FROM alpine:3.20
 RUN adduser -D -u 10001 vsrv
 USER vsrv
+WORKDIR /app
 COPY --from=build /out/vsrv /usr/local/bin/vsrv
+COPY --from=build /src/migrations /app/migrations
 EXPOSE 8090
 ENTRYPOINT ["vsrv"]

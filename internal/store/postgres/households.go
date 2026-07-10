@@ -98,6 +98,15 @@ func (s *Store) GetHouseholdTimezone(ctx context.Context, householdID string) (s
 	return tz, err
 }
 
+func (s *Store) GetHouseholdName(ctx context.Context, householdID string) (string, error) {
+	var name string
+	err := s.pool.QueryRow(ctx, `SELECT name FROM households WHERE id = $1`, householdID).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", auth.ErrForbidden
+	}
+	return name, err
+}
+
 func (s *Store) UpdateHousehold(ctx context.Context, householdID, requesterID string, name, timezone *string) (domain.Household, error) {
 	if _, err := s.GetMembership(ctx, householdID, requesterID); err != nil {
 		return domain.Household{}, err

@@ -1,13 +1,14 @@
 # VSRV Implementation Status
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 This document records what is **implemented and verified** in `vigelo-backend`
-(VSRV) and the related VNMS changes through **Phase 5**, plus the monitored-window
-**alert mode** preference (movement *or* no-movement, not both).
+(VSRV) through **Phase 7 deploy readiness**, including the admin console,
+audit logging, live service health checks, and UpCloud deployment scripts.
 
-For planning and locked-in decisions, see [`vsrvplan.md`](vsrvplan.md). For API
-shape direction, see [`mobile-api.md`](mobile-api.md).
+For operations and deployment, see [`operations.md`](operations.md) and
+[`upcloud-deploy.md`](upcloud-deploy.md). For admin UI details, see
+[`admin-console.md`](admin-console.md).
 
 ## System Context
 
@@ -21,7 +22,7 @@ vigelo-frontend (web prototype)
 
 | Repository | Role | Phase 1–5 status |
 |------------|------|------------------|
-| `vigelo-backend` | Product server (VSRV) | Phases 1–5 complete |
+| `vigelo-backend` | Product server (VSRV) | Phases 1–7 deploy ready; admin console |
 | `vigelo-nms` | Device network server (VNMS) | Enrollment + inventory APIs |
 | `vigelo-frontend` | Mobile UI prototype | Auth, invites, devices, monitored hours |
 | `vigelo-app` | Native app | Placeholder |
@@ -36,8 +37,8 @@ vigelo-frontend (web prototype)
 | **3** | VNMS client, device enrollment, Postgres device bindings | Done |
 | **4** | Monitored windows, timezone, UTC conversion, policy delivery | Done |
 | **5** | VNMS event consumer, Postgres alerts, offline detection, SMS | Done |
-| **6** | Push persistence, trial expiry job, notification dispatcher | Not started |
-| **7** | UpCloud deploy, factory E2E | Not started |
+| **6** | Push, trial expiry, audit, admin console | Done |
+| **7** | UpCloud deploy, factory E2E | Deploy scripts + docs; see `docs/upcloud-deploy.md` |
 
 ---
 
@@ -53,22 +54,29 @@ vigelo-backend/
     ids/                        # Opaque ID generation
     auth/                       # Argon2id, session errors
     authz/                      # Household roles
-    httpapi/                    # HTTP routes and handlers
+    adminweb/                   # Embedded admin UI at /admin/
+    adminstatus/                # Live service health checks
+    audit/                      # Audit logger + retention
+    trials/                     # Trial expiry worker
+    httpapi/                    # HTTP routes (incl. admin_handlers.go)
     store/
-      postgres/                 # Users, sessions, households, devices, alerts, events
-      memory/                   # Push tokens + legacy helpers (alerts removed from memory)
+      postgres/                 # All persistence incl. admin, audit, push_tokens
     devices/                    # Register, list, monitored windows, VNMS merge
     vnmsclient/                 # VNMS HTTP client
     vnmsevents/                 # Event poll + offline checker
     alerts/                     # VNMS event → alert instances
     schedule/                   # Local-time → UTC window conversion
     notifications/
-      email/                    # MailerSend + log sender
-      sms/                      # GatewayAPI + log sender
-      dispatcher.go             # Critical alert SMS routing
-  migrations/                   # 001–004 SQL
-  deploy/                       # Docker Compose, Caddy, .env.example
+      email/                    # MailerSend + log + health check
+      sms/                      # GatewayAPI + log + health check
+      push/                     # log / ntfy / apns stub
+      dispatcher.go             # Push + SMS + audit on delivery
+  migrations/                   # 001–005 SQL
+  deploy/                       # Docker Compose, Caddy, scripts, README
   docs/
+    operations.md               # Operations guide
+    upcloud-deploy.md           # Two-VM UpCloud guide
+    admin-console.md            # Admin UI reference
 ```
 
 ---
@@ -83,6 +91,7 @@ Migrations apply in order via `make migrate` or `make migrate-docker`.
 | `002_sessions_access_token.sql` | Access token on sessions |
 | `003_device_projection_alerts.sql` | `device_bindings.last_contact_at`, alert idempotency indexes |
 | `004_monitored_window_alert_mode.sql` | `monitored_window_intent.alert_mode` |
+| `005_audit_message.sql` | `audit_log.message` column + index |
 
 ### Persistence by feature
 
@@ -94,7 +103,9 @@ Migrations apply in order via `make migrate` or `make migrate-docker`.
 | Alert rules + alert instances | PostgreSQL |
 | VNMS event cursor + processed events | PostgreSQL |
 | Notification delivery log | PostgreSQL |
-| Push tokens | In-memory (Phase 6: Postgres) |
+| Push tokens | PostgreSQL |
+| Push delivery | `log` / `ntfy` / `apns` (stub) via `PUSH_PROVIDER` |
+| SMS | GatewayAPI when `GATEWAYAPI_TOKEN` set; log fallback otherwise |
 | Activity timeline | Stub data (Phase 5+: VNMS) |
 
 ---
@@ -147,12 +158,16 @@ require `Authorization: Bearer <access_token>`.
 | GET | `/v1/devices/{device_binding_id}/subscription` | Subscription state |
 | POST | `/v1/devices/{device_binding_id}/subscription/checkout` | Demo activation (no payment provider) |
 
-### Push (in-memory)
+### Push (PostgreSQL)
 
 | Method | Path |
 |--------|------|
 | POST | `/v1/push-tokens` |
 | DELETE | `/v1/push-tokens/{push_token_id}` |
+
+### Admin (requires `VSRV_ADMIN_EMAILS`)
+
+Embedded UI at `/admin/`. API under `/v1/admin/*`. See [`admin-console.md`](admin-console.md).
 
 ### Health
 
@@ -180,8 +195,20 @@ See `.env.example` and `deploy/.env.example`.
 | `VNMS_TLS_CA` | Optional CA file for private-network TLS |
 | `GATEWAYAPI_TOKEN` | SMS; logs only if unset |
 | `GATEWAYAPI_SENDER` | SMS sender name |
+| `PUSH_PROVIDER` | `log` (default), `ntfy`, or `apns` |
+| `NTFY_BASE_URL` | ntfy server (default `https://ntfy.sh`) |
+| `NTFY_TOKEN` | Optional ntfy auth token |
+| `APNS_KEY_ID` | Apple push (when native app ready) |
+| `APNS_TEAM_ID` | Apple Developer team ID |
+| `APNS_KEY_PATH` | Path to `.p8` auth key |
+| `APNS_BUNDLE_ID` | iOS app bundle ID |
+| `APNS_SANDBOX` | `true` for development builds |
+| `VSRV_ADMIN_EMAILS` | Comma-separated admin console emails |
+| `VSRV_AUDIT_RETENTION_DAYS` | Audit log retention (default `60`) |
+| `VSRV_ACCESS_TOKEN_TTL_HOURS` | Access token TTL (default `1`) |
+| `VSRV_REFRESH_TOKEN_TTL_DAYS` | Refresh token TTL (default `30`) |
 
----
+Full reference: [`operations.md`](operations.md).
 
 ## Phase 1 — Skeleton and Docker
 
@@ -299,12 +326,60 @@ PUT /v1/devices/{device_binding_id}/monitored-windows
 
 Alerts are stored in Postgres. `GET /alerts` and `POST .../ack` use the database.
 
+### Push (`internal/notifications/push/`)
+
+- **Log** (default) when `PUSH_PROVIDER=log`
+- **ntfy** when `PUSH_PROVIDER=ntfy` — token is the topic name
+- **APNs stub** when `PUSH_PROVIDER=apns` — set `APNS_*` env vars; wire `apns2` when native iOS app ships
+- Dispatcher sends push for any alert rule that includes `push` channel
+- Tokens stored in Postgres (`push_tokens`); register via `POST /v1/push-tokens`
+
 ### SMS (`internal/notifications/sms/`)
 
 - **GatewayAPI** when `GATEWAYAPI_TOKEN` is set
-- Log sender otherwise
+- Log sender otherwise — **no code changes needed; add credentials only**
 - SMS sent for critical types (`no_movement_detected`, `device_offline`) when rule
   includes `sms` and household member has **verified** phone
+
+---
+
+## Phase 6 — Admin Console, Audit, Push, Trials
+
+### Admin console (`internal/adminweb/`)
+
+- Embedded UI at `/admin/` — Users, Status, Audit log, Dashboard
+- Auth via normal login + `VSRV_ADMIN_EMAILS` allowlist
+- User drill-down: households, members (invite status), devices, subscriptions
+- Device ops: VNMS enable/disable, provision, trial extend, move, delete
+- Live service health: Database, VNMS, MailerSend, GatewayAPI, ntfy
+
+See [`admin-console.md`](admin-console.md).
+
+### Audit logging (`internal/audit/`, migration `005`)
+
+- `audit_log` table with human-readable `message` field
+- Retention job (`VSRV_AUDIT_RETENTION_DAYS`)
+- Logs: auth, device, admin, notification, trial events
+
+### Trial expiry (`internal/trials/`)
+
+- Background worker suspends expired trials
+- Calls VNMS disable when trial ends
+
+### Push persistence
+
+- `push_tokens` in PostgreSQL (memory store removed)
+- Providers: `log`, `ntfy`, `apns` (stub)
+
+---
+
+## Phase 7 — UpCloud Deployment
+
+- `deploy/docker-compose.yml` — postgres, migrate, vsrv, caddy (full env)
+- `deploy/scripts/` — install, firewall, deploy, sync, smoke-test, check-vnms
+- `deploy/README.md` + [`upcloud-deploy.md`](upcloud-deploy.md)
+- VNMS integration: shared `VNMS_HTTP_TOKEN`, private-network HTTP
+- Dockerfile includes migrations for runtime auto-migrate
 
 ---
 
@@ -390,13 +465,13 @@ npm run dev
 |------|-------|
 | OpenAPI spec for VSRV | Planned; routes documented here |
 | Activity from VNMS | `GET /activity` returns stub data |
-| Push token Postgres + real push provider | Phase 6 |
+| Push token Postgres + push providers | Done (`log`/`ntfy`; APNs stub for later) |
 | Trial expiry → VNMS disable job | Phase 6 |
 | Payment provider | Fake checkout URL only |
 | Per-device notification preferences API | Alert mode on monitored windows only |
 | Quiet hours | Schema exists on `alert_rules`; not evaluated |
 | VNMS activity/timeline in mobile API | Not wired |
-| UpCloud production deploy | Phase 7 |
+| UpCloud production deploy | `deploy/` + `docs/upcloud-deploy.md` (two-VM VSRV+VNMS) |
 | Kubernetes | Deferred until pre-launch |
 
 ---
@@ -404,6 +479,10 @@ npm run dev
 ## Related Documents
 
 Keep these aligned when behavior changes:
+
+- [`operations.md`](operations.md)
+- [`upcloud-deploy.md`](upcloud-deploy.md)
+- [`admin-console.md`](admin-console.md)
 
 - [`vsrvplan.md`](vsrvplan.md) — master plan and decisions
 - [`vnms-integration.md`](vnms-integration.md) — VNMS contracts
