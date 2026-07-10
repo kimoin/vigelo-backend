@@ -431,10 +431,12 @@ func writeDeviceError(w http.ResponseWriter, err error) bool {
 		writeError(w, http.StatusNotFound, "not_found", "device not found", "")
 	case errors.Is(err, devices.ErrVNMSNotConfigured):
 		writeError(w, http.StatusServiceUnavailable, "service_unavailable", "device enrollment is not configured", "")
-	case errors.Is(err, devices.ErrInvalidEnrollment):
+	case errors.Is(err, devices.ErrMissingEnrollment):
 		writeError(w, http.StatusBadRequest, "invalid_request", "device id and enrollment secret are required", "enrollment_secret")
+	case errors.Is(err, devices.ErrInvalidEnrollment):
+		writeError(w, http.StatusBadRequest, "invalid_request", "enrollment secret must be a 32-character hex device key", "enrollment_secret")
 	case errors.Is(err, devices.ErrEnrollmentRejected):
-		writeError(w, http.StatusForbidden, "forbidden", "enrollment could not be verified", "enrollment_secret")
+		writeError(w, http.StatusForbidden, "forbidden", "enrollment could not be verified — check device ID and key", "enrollment_secret")
 	case errors.Is(err, devices.ErrDeviceAlreadyActive):
 		writeError(w, http.StatusConflict, "conflict", "device is already active on the network", "device_id")
 	case errors.Is(err, devices.ErrInvalidMonitoredWindows):

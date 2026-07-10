@@ -30,10 +30,12 @@ Important endpoints:
 ```http
 GET  /healthz
 GET  /v1/devices?q=&limit=50&offset=0
-POST /v1/devices:provision-inventory    # factory import (disabled)
+POST /v1/devices:provision-inventory    # VSRV: first enroll or re-provision (disabled)
 POST /v1/devices/{device_id}/verify-enrollment
 POST /v1/devices/{device_id}/enable
 POST /v1/devices/{device_id}/disable
+POST /v1/devices/{device_id}/unprovision
+DELETE /v1/devices/{device_id}          # permanent delete; device must be unprovisioned
 POST /v1/devices:batchGet
 GET  /v1/devices/{device_id}
 GET  /v1/devices/{device_id}/activity?start=YYYY-MM-DD&end=YYYY-MM-DD
@@ -45,8 +47,8 @@ DELETE /v1/devices/{device_id}
 GET  /v1/events?after=0&limit=100
 ```
 
-`POST /v1/devices:provision` remains for direct provisioning; the product flow
-uses factory inventory + verify-enrollment + enable instead.
+`POST /v1/devices:provision` remains for direct active provisioning; the product
+flow uses verify-enrollment, provision-inventory (when needed), and enable instead.
 
 ## Authentication
 
@@ -71,22 +73,24 @@ through its own audit/event logs.
 ## Device Claim and Provisioning Flow
 
 ```text
-Factory: VNMS provision-inventory (device disabled)
-Mobile scans QR
-  -> VSRV parses claim data (device_id + enrollment_secret)
-  -> VSRV authenticates user and household permission
+Mobile or admin enters device_id + 32-character hex enrollment secret
+  -> VSRV parses and validates claim data
+  -> VSRV authenticates user and household permission (mobile) or admin (console)
   -> VSRV calls VNMS verify-enrollment
+     - not in NMS or unprovisioned -> VSRV calls provision-inventory (disabled)
+     - key mismatch -> 403 forbidden
+     - already active in NMS -> 409 conflict
   -> VSRV creates DeviceBinding + trialing subscription
   -> VSRV calls VNMS enable
   -> VSRV starts subscription activation flow if needed
   -> Mobile sees device as pending first contact or active
 ```
 
-QR/enrollment payload for current-generation devices is expected to contain:
+Enrollment payload for current-generation devices is expected to contain:
 
-- `device_id`, currently the modem IMEI.
-- Enrollment secret or device key material needed to register with VNMS.
-- Optional manufacturing metadata.
+- `device_id` — alphanumeric identifier (commonly modem IMEI).
+- `enrollment_secret` — 32-character hex device key.
+- Optional manufacturing metadata in QR payloads.
 
 Rules:
 

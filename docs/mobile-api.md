@@ -114,16 +114,19 @@ Claim request example:
 
 Claim behavior (implemented):
 
-1. Parse and validate QR payload or structured `device_id` + `enrollment_secret`.
+1. Parse and validate QR payload or structured `device_id` + `enrollment_secret`
+   (32-character hex key).
 2. Verify the user can claim into the household.
-3. Call VNMS `POST /v1/devices/{device_id}/verify-enrollment` (constant-time key check).
+3. Call VNMS `verify-enrollment`; if the device is unknown or unprovisioned in NMS,
+   VSRV calls `provision-inventory` with the same key.
 4. Create Postgres `device_bindings` and trialing `subscriptions`.
 5. Call VNMS `POST /v1/devices/{device_id}/enable`.
 6. Merge VNMS state via `batchGet` for list/detail responses.
 7. Prompt for subscription activation if needed.
 
-Factory inventory must exist in VNMS (`POST /v1/devices:provision-inventory`) before
-user enrollment. VSRV does **not** call `POST /v1/devices:provision` during claim.
+NMS is not pre-populated in the product flow — the first enrollment creates the
+device record. Admin provision (`POST /v1/admin/households/{hh}/devices`) uses the
+same VSRV enrollment logic.
 
 Never return the device key to the app after claim.
 

@@ -2,6 +2,7 @@ package devices
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +14,11 @@ import (
 	"github.com/kimoin/vigelo-backend/internal/vnmsclient"
 )
 
+const enrollmentKeyHexLen = 32 // AES-128 key as 32 hex characters
+
 var (
 	ErrVNMSNotConfigured   = errors.New("vnms is not configured")
+	ErrMissingEnrollment   = errors.New("missing enrollment fields")
 	ErrInvalidEnrollment   = errors.New("invalid enrollment data")
 	ErrEnrollmentRejected  = errors.New("enrollment rejected by vnms")
 	ErrDeviceAlreadyActive = errors.New("device is already active on the network")
@@ -22,6 +26,7 @@ var (
 
 type VNMS interface {
 	VerifyEnrollment(ctx context.Context, deviceID, deviceKeyHex string) (vnmsclient.EnrollmentView, error)
+	ProvisionInventory(ctx context.Context, deviceID, deviceKeyHex string) error
 	Enable(ctx context.Context, deviceID string) error
 	BatchGet(ctx context.Context, deviceIDs []string) (map[string]vnmsclient.DeviceState, error)
 	SetMonitoredWindows(ctx context.Context, deviceID string, windows []vnmsclient.Window) ([]vnmsclient.Window, error)
@@ -54,20 +59,14 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*domain.Devic
 	deviceID := strings.TrimSpace(in.DeviceID)
 	secret := normalizeEnrollmentSecret(in.EnrollmentSecret)
 	if deviceID == "" || secret == "" {
+		return nil, ErrMissingEnrollment
+	}
+	if len(deviceID) > 64 || !validEnrollmentSecret(secret) {
 		return nil, ErrInvalidEnrollment
 	}
 
-	view, err := s.VNMS.VerifyEnrollment(ctx, deviceID, secret)
+	view, err := s.ensureVNMSDevice(ctx, deviceID, secret)
 	if err != nil {
-		if errors.Is(err, vnmsclient.ErrNotFound) {
-			return nil, ErrEnrollmentRejected
-		}
-		if errors.Is(err, vnmsclient.ErrForbidden) {
-			return nil, ErrEnrollmentRejected
-		}
-		if errors.Is(err, vnmsclient.ErrConflict) {
-			return nil, ErrDeviceAlreadyActive
-		}
 		return nil, err
 	}
 	if !view.Provisioned || !view.Verified {
@@ -101,6 +100,57 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*domain.Devic
 		return ProjectBinding(row, vnmsclient.DeviceState{}, s.OfflineThreshold), nil
 	}
 	return ProjectBinding(row, states[deviceID], s.OfflineThreshold), nil
+}
+
+func (s *Service) ensureVNMSDevice(ctx context.Context, deviceID, secret string) (vnmsclient.EnrollmentView, error) {
+	view, err := s.VNMS.VerifyEnrollment(ctx, deviceID, secret)
+	if err == nil {
+		if view.LifecycleState == "active" {
+			return view, ErrDeviceAlreadyActive
+		}
+		return view, nil
+	}
+	if errors.Is(err, vnmsclient.ErrForbidden) {
+		return view, ErrEnrollmentRejected
+	}
+	if errors.Is(err, vnmsclient.ErrConflict) {
+		return view, ErrDeviceAlreadyActive
+	}
+	if errors.Is(err, vnmsclient.ErrInvalidRequest) {
+		return view, ErrInvalidEnrollment
+	}
+	if errors.Is(err, vnmsclient.ErrNotFound) {
+		if err := s.VNMS.ProvisionInventory(ctx, deviceID, secret); err != nil {
+			return view, mapProvisionError(err)
+		}
+		return vnmsclient.EnrollmentView{
+			Verified:       true,
+			LifecycleState: "disabled",
+			Provisioned:    true,
+		}, nil
+	}
+	return view, err
+}
+
+func mapProvisionError(err error) error {
+	if errors.Is(err, vnmsclient.ErrConflict) {
+		return ErrDeviceAlreadyActive
+	}
+	if errors.Is(err, vnmsclient.ErrInvalidRequest) {
+		return ErrInvalidEnrollment
+	}
+	if errors.Is(err, vnmsclient.ErrForbidden) {
+		return ErrEnrollmentRejected
+	}
+	return err
+}
+
+func validEnrollmentSecret(secret string) bool {
+	if len(secret) != enrollmentKeyHexLen {
+		return false
+	}
+	_, err := hex.DecodeString(secret)
+	return err == nil
 }
 
 func (s *Service) ListHouseholdDevices(ctx context.Context, householdID string) ([]*domain.DeviceBinding, error) {

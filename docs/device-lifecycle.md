@@ -1,7 +1,8 @@
 # Device Lifecycle
 
-> **Implementation status:** Enrollment via VNMS verify-enrollment + enable is
-> live. See [`implementation-status.md`](implementation-status.md).
+> **Implementation status:** Enrollment is live: VSRV provisions the device in
+> VNMS on first claim (admin or mobile), then enables it. See
+> [`implementation-status.md`](implementation-status.md).
 
 ## Purpose
 
@@ -36,21 +37,22 @@ raw in normal mobile screens.
 ## Claim Flow
 
 ```text
-Factory imports device in VNMS (provision-inventory, disabled)
-Mobile scans QR or enters device_id + key
-  -> VSRV parses enrollment payload
+User enters device_id + 32-character hex key (mobile app or VSRV admin)
+  -> VSRV validates input
   -> VSRV calls VNMS verify-enrollment
+     - unknown or unprovisioned in NMS -> VSRV calls provision-inventory (disabled)
+     - wrong key -> rejected
+     - already active in NMS -> conflict
   -> VSRV creates DeviceBinding + trialing subscription
   -> VSRV calls VNMS enable
   -> user activates subscription (demo checkout)
   -> device becomes active when service and first contact are ready
 ```
 
-Claim inputs for current-generation devices:
+Claim inputs:
 
-- `device_id`, currently modem IMEI.
-- Per-device key or enrollment material.
-- Optional manufacturing metadata.
+- `device_id` — any alphanumeric identifier (1–64 characters), commonly modem IMEI.
+- `enrollment_secret` — 32-character hex device key (16 bytes).
 
 Claim requirements:
 
@@ -62,7 +64,13 @@ Claim requirements:
 
 ## Provisioning in VNMS
 
-**Factory (before user claim):**
+NMS learns about a device for the first time when VSRV enrolls it (mobile claim or
+admin provision). There is no separate factory pre-import step in the product flow.
+
+**VSRV enrollment (internal sequence):**
+
+1. `POST /v1/devices/{device_id}/verify-enrollment` — key check when device already has credentials in NMS.
+2. If the device is unknown or **unprovisioned** in NMS, VSRV calls:
 
 ```http
 POST /v1/devices:provision-inventory
@@ -75,19 +83,26 @@ POST /v1/devices:provision-inventory
 }
 ```
 
-Device is stored as `disabled` until user enrollment.
+Device is stored as `disabled` until enable.
 
-**User enrollment (VSRV):**
+3. After the VSRV binding is created:
 
 ```http
-POST /v1/devices/{device_id}/verify-enrollment
 POST /v1/devices/{device_id}/enable
 ```
 
-VSRV calls verify-enrollment with the enrollment secret, then enable after binding.
 VNMS stores the device key and uses it to authenticate future UDP traffic. VSRV
 stores only the device binding and product ownership; raw keys are not persisted
 after successful enrollment.
+
+**Removing test or support devices from NMS:**
+
+```http
+POST /v1/devices/{device_id}/unprovision
+DELETE /v1/devices/{device_id}
+```
+
+Permanent delete requires the device to be unprovisioned first.
 
 ## First Contact
 

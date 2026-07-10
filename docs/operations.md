@@ -187,11 +187,12 @@ CSV format: `device_id,device_key_hex` (see `deploy/example-devices.csv`).
 
 ### Device enrollment flow
 
-1. Factory import in VNMS (device `disabled` in inventory)
-2. User registers on VSRV
-3. User claims device with `device_id` + enrollment secret
-4. VSRV: `verify-enrollment` → Postgres binding + trial → VNMS `enable`
-5. Device appears in admin console with trial/subscription status
+1. User registers on VSRV (if new)
+2. User or admin enrolls with `device_id` + 32-character hex enrollment secret
+3. VSRV: `verify-enrollment` (or `provision-inventory` if device unknown/unprovisioned in NMS) → Postgres binding + trial → VNMS `enable`
+4. Device appears in admin console with trial/subscription status
+
+For test devices: remove VSRV binding, then VNMS `unprovision` + `DELETE /v1/devices/{device_id}`.
 
 ---
 

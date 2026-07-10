@@ -238,15 +238,17 @@ Full reference: [`operations.md`](operations.md).
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /v1/devices:provision-inventory` | Factory import as `disabled` |
+| `POST /v1/devices:provision-inventory` | First enroll / re-provision as `disabled` (called by VSRV) |
 | `POST /v1/devices/{device_id}/verify-enrollment` | Constant-time key check |
-| `deploy/scripts/import-inventory.sh` | CSV batch import script |
+| `POST /v1/devices/{device_id}/unprovision` | Clear credentials; keep history |
+| `DELETE /v1/devices/{device_id}` | Permanent delete (unprovisioned only) |
+| `deploy/scripts/import-inventory.sh` | Optional CSV batch import for bench/support |
 
 ### VSRV
 
-- `internal/vnmsclient/`: verify-enrollment, enable, batchGet
+- `internal/vnmsclient/`: verify-enrollment, provision-inventory, enable, unprovision, delete, batchGet
 - Postgres `device_bindings` + trialing `subscriptions` on register
-- Enrollment flow: verify → bind → trial → VNMS enable → batchGet merge
+- Enrollment flow: verify (or provision-inventory if new/unprovisioned) → bind → trial → VNMS enable → batchGet merge
 - `POST .../devices/register` and `POST .../device-claims` (QR alias)
 - Device list/detail reads VNMS state; bindings stored in Postgres
 

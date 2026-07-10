@@ -58,7 +58,11 @@ Click a user row to expand:
 | Mark paid | `POST .../activate-subscription` | Demo: sets active for 1 month |
 | Move device | `POST .../move` | Dropdown of user's other households |
 | Delete device | `DELETE .../devices/{id}` | Soft-remove binding |
-| Provision device | `POST /v1/admin/households/{hh}/devices` | Admin enrollment with device_id + secret |
+| Provision device | `POST /v1/admin/households/{hh}/devices` | Same enrollment as mobile: `device_id` + 32-char hex key; VSRV provisions NMS on first use |
+
+**Test device cleanup (VNMS):** unprovision then `DELETE /v1/devices/{device_id}` on
+VNMS (requires unprovisioned state). Remove the VSRV binding separately via
+**Delete device** above.
 
 ### Household actions
 

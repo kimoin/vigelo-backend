@@ -772,16 +772,17 @@ Manual entry. Uses explicit `device_id` + `enrollment_secret`.
 **Server-side enrollment steps**
 
 1. Verify caller is owner/admin of household
-2. Call VNMS `verify-enrollment` (constant-time key check)
-3. Create `device_bindings` row + `trialing` subscription (default 30 days)
-4. Call VNMS `enable`
-5. Merge live VNMS state into response
+2. Validate `device_id` and 32-character hex `enrollment_secret`
+3. Call VNMS `verify-enrollment`; if the device is new or unprovisioned in NMS, call `provision-inventory`
+4. Create `device_bindings` row + `trialing` subscription (default 30 days)
+5. Call VNMS `enable`
+6. Merge live VNMS state into response
 
 **Errors**
 
 | HTTP | Code | Field | Condition |
 |------|------|-------|-----------|
-| 400 | `invalid_request` | `qr_payload` or `enrollment_secret` | Missing device ID or secret |
+| 400 | `invalid_request` | `enrollment_secret` | Missing fields or invalid key format (must be 32 hex chars) |
 | 403 | `forbidden` | `enrollment_secret` | Key rejected by VNMS |
 | 403 | `forbidden` | — | Role not owner/admin |
 | 409 | `conflict` | `device_id` | Already claimed or active elsewhere |

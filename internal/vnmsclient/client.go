@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	ErrNotConfigured = errors.New("vnms client is not configured")
-	ErrNotFound      = errors.New("vnms resource not found")
-	ErrForbidden     = errors.New("vnms request forbidden")
-	ErrConflict      = errors.New("vnms request conflict")
+	ErrNotConfigured  = errors.New("vnms client is not configured")
+	ErrNotFound       = errors.New("vnms resource not found")
+	ErrForbidden      = errors.New("vnms request forbidden")
+	ErrConflict       = errors.New("vnms request conflict")
+	ErrInvalidRequest = errors.New("vnms request invalid")
 )
 
 type Config struct {
@@ -102,6 +103,13 @@ func (c *Client) VerifyEnrollment(ctx context.Context, deviceID, deviceKeyHex st
 		"device_key_hex": deviceKeyHex,
 	}, &out)
 	return out, err
+}
+
+func (c *Client) ProvisionInventory(ctx context.Context, deviceID, deviceKeyHex string) error {
+	return c.post(ctx, "/v1/devices:provision-inventory", map[string]string{
+		"device_id":  deviceID,
+		"device_key": deviceKeyHex,
+	}, nil)
 }
 
 func (c *Client) Enable(ctx context.Context, deviceID string) error {
@@ -234,6 +242,8 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		return fmt.Errorf("%w: %s", ErrForbidden, errOut.Error())
 	case http.StatusConflict:
 		return fmt.Errorf("%w: %s", ErrConflict, errOut.Error())
+	case http.StatusBadRequest:
+		return fmt.Errorf("%w: %s", ErrInvalidRequest, errOut.Message)
 	default:
 		return errOut
 	}
