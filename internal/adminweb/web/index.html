@@ -89,7 +89,7 @@
   </div>
 
 <script>
-const API = localStorage.getItem('vsrv_api_base') || (location.origin.includes('8090') ? location.origin : 'http://127.0.0.1:8090');
+const API = localStorage.getItem('vsrv_api_base') || location.origin;
 let token = localStorage.getItem('vsrv_admin_token') || '';
 const tabs = [
   { id:'users', label:'Users' },

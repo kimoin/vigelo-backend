@@ -5,13 +5,62 @@ device enrollment, enable/disable, schedule sync, and event polling.
 
 ## Topology
 
-| VM | Service | Public ports | Private |
-|----|---------|--------------|---------|
-| **vm-vnms** | vigelo-nms | UDP 5642 (devices) | HTTP 8080 → VSRV only |
-| **vm-vsrv** | vigelo-backend | HTTPS 443 (API + admin) | — |
+| VM | Service | Public ports | Private IP |
+|----|---------|--------------|------------|
+| **vm-vnms** | vigelo-nms | UDP 5642 (devices) | `10.10.10.10` — HTTP 8080 → VSRV only |
+| **vm-vsrv** | vigelo-backend | HTTPS 443 (API + admin) | `10.10.10.20` |
 
-Both VMs should be on the same **UpCloud private network** (SDN). Note each
-VM's private IP (e.g. VNMS `10.0.1.10`, VSRV `10.0.1.20`).
+Both VMs attach to the same **UpCloud SDN private network** (`10.10.10.0/24`).
+
+### Configure private network at the OS (both VMs)
+
+UpCloud attaches the SDN as a new interface (commonly **`eth3`**). Do not
+reconfigure `eth1` — that is the UpCloud utility network.
+
+After attaching the SDN in the control panel with **Manual IP address**, set
+the IP in netplan on **Ubuntu 22+**:
+
+**VNMS** (`10.10.10.10`):
+
+```yaml
+# /etc/netplan/60-vigelo-private.yaml
+network:
+  version: 2
+  ethernets:
+    eth3:
+      addresses:
+        - 10.10.10.10/24
+      routes:
+        - to: 10.10.10.0/24
+          via: 10.10.10.1
+```
+
+**VSRV** (`10.10.10.20`):
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth3:
+      addresses:
+        - 10.10.10.20/24
+      routes:
+        - to: 10.10.10.0/24
+          via: 10.10.10.1
+```
+
+Apply and verify:
+
+```sh
+sudo netplan apply
+ip addr show dev eth3
+```
+
+From VSRV, test reachability before deploy:
+
+```sh
+ping -c 2 10.10.10.10
+```
 
 ## 1. Generate shared secrets (local)
 
@@ -36,10 +85,10 @@ cp .env.example .env
 # Edit .env:
 #   POSTGRES_PASSWORD
 #   VNMS_HTTP_TOKEN=<from generate-secrets>
-#   VNMS_HTTP_PUBLISH=10.0.1.10:8080:8080   # this VM's private IP
-#   VSRV_PRIVATE_IP=10.0.1.20               # VSRV private IP (firewall)
+#   VNMS_HTTP_PUBLISH=10.10.10.10:8080:8080   # this VM's private IP
+#   VSRV_PRIVATE_IP=10.10.10.20               # VSRV private IP (firewall)
 
-VSRV_PRIVATE_IP=10.0.1.20 ./scripts/02-firewall.sh
+VSRV_PRIVATE_IP=10.10.10.20 ./scripts/02-firewall.sh
 ./scripts/03-deploy.sh
 ./scripts/smoke-test.sh
 ```
@@ -74,7 +123,7 @@ cp .env.example .env
 #   FRONTEND_BASE_URL=https://app.yourdomain.com
 #   VSRV_CORS_ORIGIN=https://app.yourdomain.com
 #   VSRV_ADMIN_EMAILS=you@example.com
-#   VNMS_BASE_URL=http://10.0.1.10:8080
+#   VNMS_BASE_URL=http://10.10.10.10:8080
 #   VNMS_HTTP_TOKEN=<same as VNMS>
 
 ./scripts/02-firewall.sh

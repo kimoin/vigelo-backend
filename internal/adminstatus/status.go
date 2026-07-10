@@ -2,8 +2,10 @@ package adminstatus
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kimoin/vigelo-backend/internal/config"
@@ -34,14 +36,27 @@ type ServiceStatus struct {
 }
 
 func (c *Checker) All(ctx context.Context) []ServiceStatus {
-	return []ServiceStatus{
-		c.database(ctx),
-		c.vnms(ctx),
-		c.mailer(ctx),
-		c.sms(ctx),
-		c.apns(),
-		c.unifiedPush(ctx),
+	checks := []func(context.Context) ServiceStatus{
+		c.database,
+		c.vnms,
+		c.mailer,
+		c.sms,
+		func(ctx context.Context) ServiceStatus { return c.apns() },
+		c.unifiedPush,
 	}
+	out := make([]ServiceStatus, len(checks))
+	var wg sync.WaitGroup
+	for i, check := range checks {
+		wg.Add(1)
+		go func(i int, check func(context.Context) ServiceStatus) {
+			defer wg.Done()
+			checkCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+			defer cancel()
+			out[i] = check(checkCtx)
+		}(i, check)
+	}
+	wg.Wait()
+	return out
 }
 
 func (c *Checker) database(ctx context.Context) ServiceStatus {
@@ -68,7 +83,7 @@ func (c *Checker) vnms(ctx context.Context) ServiceStatus {
 	}
 	if err := c.VNMS.Health(ctx); err != nil {
 		st.Status = "down"
-		st.Detail = err.Error()
+		st.Detail = healthErrDetail(err, c.Cfg.VNMSBaseURL)
 		return st
 	}
 	st.Status = "ok"
@@ -116,6 +131,19 @@ func (c *Checker) sms(ctx context.Context) ServiceStatus {
 	st.Status = "fail"
 	st.Detail = "sms sender does not support health checks"
 	return st
+}
+
+func healthErrDetail(err error, baseURL string) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "context deadline exceeded") {
+		if baseURL != "" {
+			return "unreachable at " + baseURL + " (timeout)"
+		}
+		return "health check timed out"
+	}
+	return err.Error()
 }
 
 func (c *Checker) apns() ServiceStatus {

@@ -66,13 +66,13 @@ Status tab should show **Database: ok** and **VNMS: ok** when integration works.
 On the **VNMS server** (`vigelo-nms/deploy`):
 
 1. Set the same `VNMS_HTTP_TOKEN` in both `.env` files
-2. Set `VNMS_HTTP_PUBLISH=<vnms-private-ip>:8080:8080`
-3. Run `VSRV_PRIVATE_IP=<vsrv-private-ip> ./scripts/02-firewall.sh`
+2. Set `VNMS_HTTP_PUBLISH=10.10.10.10:8080:8080`
+3. Run `VSRV_PRIVATE_IP=10.10.10.20 ./scripts/02-firewall.sh`
 4. Import factory devices: `./scripts/import-inventory.sh devices.csv http://127.0.0.1:8080 $VNMS_HTTP_TOKEN`
 
 On **VSRV**:
 
-1. `VNMS_BASE_URL=http://<vnms-private-ip>:8080`
+1. `VNMS_BASE_URL=http://10.10.10.10:8080`
 2. `VNMS_HTTP_TOKEN=<same token>`
 3. Redeploy: `./scripts/03-deploy.sh`
 
