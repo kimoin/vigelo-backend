@@ -116,6 +116,10 @@ func (c *Client) Unprovision(ctx context.Context, deviceID string) error {
 	return c.post(ctx, fmt.Sprintf("/v1/devices/%s/unprovision", deviceID), nil, nil)
 }
 
+func (c *Client) Delete(ctx context.Context, deviceID string) error {
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/devices/%s", deviceID), nil, nil)
+}
+
 func (c *Client) Health(ctx context.Context) error {
 	return c.do(ctx, http.MethodGet, "/healthz", nil, nil)
 }
