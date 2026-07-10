@@ -40,15 +40,13 @@ GET  /v1/devices/{device_id}/activity?start=YYYY-MM-DD&end=YYYY-MM-DD
 PUT  /v1/devices/{device_id}/monitored-windows
 POST /v1/devices/{device_id}/request-device-info
 POST /v1/devices/{device_id}/request-device-status
-POST /v1/devices/{device_id}/deactivate
+POST /v1/devices/{device_id}/unprovision
+DELETE /v1/devices/{device_id}
 GET  /v1/events?after=0&limit=100
 ```
 
 `POST /v1/devices:provision` remains for direct provisioning; the product flow
 uses factory inventory + verify-enrollment + enable instead.
-
-The legacy VNMS route `PUT /v1/devices/{device_id}/desired-schedule` exists as an
-alias but VSRV should use `/monitored-windows`.
 
 ## Authentication
 

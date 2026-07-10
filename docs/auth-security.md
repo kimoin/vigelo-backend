@@ -188,7 +188,7 @@ Audit security-sensitive and product-sensitive actions:
 - Session revocation.
 - Household/member changes.
 - Device claim, transfer, removal.
-- VNMS provision/deactivate calls.
+- VNMS provision/unprovision calls.
 - Monitored-window updates.
 - Alert rule and notification preference changes.
 - Subscription activation/cancel.
