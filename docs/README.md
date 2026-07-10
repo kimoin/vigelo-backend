@@ -14,7 +14,8 @@ Read in this order:
 2. [`domain-model.md`](domain-model.md) - product entities and authorization shape.
 3. [`device-lifecycle.md`](device-lifecycle.md) - claim, provision, transfer, removal.
 4. [`vnms-integration.md`](vnms-integration.md) - service-to-service VNMS API and events.
-5. [`mobile-api.md`](mobile-api.md) - API contract direction for the mobile app.
+5. [`mobile-developer-guide.md`](mobile-developer-guide.md) - **mobile API reference (implemented endpoints, types, flows)**.
+5. [`mobile-api.md`](mobile-api.md) - API contract direction and future endpoints.
 6. [`auth-security.md`](auth-security.md) - account, session, authorization, audit.
 7. [`subscriptions-payments.md`](subscriptions-payments.md) - service subscription and payment flow.
 8. [`alerts-notifications.md`](alerts-notifications.md) - alert policy and push delivery.

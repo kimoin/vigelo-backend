@@ -29,7 +29,8 @@ local E2E steps.
 - [`docs/implementation-status.md`](docs/implementation-status.md) — **what is built today**
 - [`docs/vsrvplan.md`](docs/vsrvplan.md) — consolidated plan and decisions
 - [`docs/architecture.md`](docs/architecture.md) — service boundaries
-- [`docs/mobile-api.md`](docs/mobile-api.md) — mobile API direction
+- [`docs/mobile-developer-guide.md`](docs/mobile-developer-guide.md) — **mobile API reference for app developers**
+- [`docs/mobile-api.md`](docs/mobile-api.md) — mobile API design direction
 - [`docs/vnms-integration.md`](docs/vnms-integration.md) — VNMS integration
 - [`docs/upcloud-deploy.md`](docs/upcloud-deploy.md) — **UpCloud: VSRV + VNMS two-VM setup**
 - [`docs/alerts-notifications.md`](docs/alerts-notifications.md) — alerts and SMS

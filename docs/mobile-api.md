@@ -1,5 +1,9 @@
 # Mobile API Design
 
+> **For app developers:** see [`mobile-developer-guide.md`](mobile-developer-guide.md) for the
+> full reference of **implemented** endpoints, request/response shapes, enums, roles, and
+> integration flows. This document describes design direction and planned endpoints.
+
 ## Purpose
 
 The VSRV mobile API is the only API used by the Vigelo mobile app. It exposes
