@@ -6,56 +6,143 @@
   <title>Vigelo VSRV Admin</title>
   <style>
     :root {
-      --bg: #f4f6f8;
-      --card: #ffffff;
-      --text: #18181b;
-      --muted: #71717a;
-      --border: #e4e4e7;
-      --accent: #14b8a6;
-      --accent-soft: #ccfbf1;
-      --ok: #059669;
+      --bg: #eef2ff;
+      --card: rgba(255, 255, 255, 0.94);
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: rgba(148, 163, 184, 0.32);
+      --blue: #2563eb;
+      --blue-deep: #1d4ed8;
+      --cyan: #06b6d4;
+      --cyan-deep: #0891b2;
+      --yellow: #eab308;
+      --yellow-deep: #ca8a04;
+      --red: #ef4444;
+      --red-deep: #dc2626;
+      --accent: #2563eb;
+      --accent-2: #06b6d4;
+      --gradient-primary: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+      --gradient-cool: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
+      --gradient-warm: linear-gradient(135deg, #eab308 0%, #ef4444 100%);
+      --gradient-sky: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
+      --gradient-amber: linear-gradient(135deg, #fde047 0%, #f59e0b 100%);
+      --gradient-rose: linear-gradient(135deg, #fb7185 0%, #ef4444 100%);
+      --gradient-soft-blue: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(6, 182, 212, 0.14) 100%);
+      --gradient-soft-cyan: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(99, 102, 241, 0.1) 100%);
+      --gradient-soft-yellow: linear-gradient(135deg, rgba(234, 179, 8, 0.14) 0%, rgba(245, 158, 11, 0.1) 100%);
+      --gradient-soft-red: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(244, 63, 94, 0.1) 100%);
+      --ok: #0891b2;
       --warn: #d97706;
       --err: #dc2626;
-      --shadow: 0 1px 3px rgba(24,24,27,.06), 0 4px 12px rgba(24,24,27,.04);
-      --shadow-lg: 0 8px 24px rgba(24,24,27,.1);
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(37, 99, 235, 0.07);
+      --shadow-lg: 0 16px 48px rgba(15, 23, 42, 0.12);
     }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); line-height:1.45; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      line-height: 1.45;
+      min-height: 100vh;
+      background: linear-gradient(165deg, #eef2ff 0%, #f8fafc 38%, #ecfeff 72%, #fffbeb 100%);
+      background-attachment: fixed;
+    }
     header {
-      padding: .85rem 1.5rem; background:var(--card); border-bottom:1px solid var(--border);
-      display:flex; gap:1rem; align-items:center; flex-wrap:wrap; position:relative;
+      padding: .85rem 1.5rem;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+      position: relative;
       box-shadow: var(--shadow);
     }
-    h1 { margin:0; font-size:1.15rem; font-weight:600; }
+    header::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 2px;
+      background: var(--gradient-primary);
+      opacity: .55;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
     h2 { margin:0 0 1rem; font-size:1.25rem; font-weight:600; }
+    .login h2 {
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
     h3, h4 { margin:0 0 .5rem; font-weight:600; }
     main { padding:1.25rem 1.5rem; max-width:1200px; margin:0 auto; }
-    .card { background:var(--card); border-radius:12px; padding:1rem 1.15rem; margin-bottom:1rem; border:1px solid var(--border); box-shadow:var(--shadow); }
+    .card {
+      background: var(--card);
+      backdrop-filter: blur(8px);
+      border-radius: 14px;
+      padding: 1rem 1.15rem;
+      margin-bottom: 1rem;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .login {
+      max-width: 380px;
+      margin: 4rem auto;
+      border: 1px solid transparent;
+      background:
+        linear-gradient(var(--card), var(--card)) padding-box,
+        var(--gradient-primary) border-box;
+    }
     .tabs { display:flex; gap:.35rem; flex-wrap:wrap; }
     .tabs button {
       background:transparent; color:var(--muted); border:1px solid transparent;
       padding:.4rem .75rem; border-radius:8px; cursor:pointer; font-size:.875rem; font-weight:500;
+      transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
     }
-    .tabs button:hover { color:var(--text); background:#f4f4f5; }
-    .tabs button.active { color:var(--accent); background:var(--accent-soft); border-color:#99f6e4; }
+    .tabs button:hover { color:var(--text); background:rgba(255,255,255,.75); }
+    .tabs button.active {
+      color:#fff; border-color:transparent;
+      box-shadow:0 4px 14px rgba(37,99,235,.28);
+      transform:translateY(-1px);
+    }
+    .tabs button.active.tab-tone-blue { background:var(--gradient-primary); }
+    .tabs button.active.tab-tone-cyan { background:var(--gradient-cool); box-shadow:0 4px 14px rgba(6,182,212,.28); }
+    .tabs button.active.tab-tone-warm { background:var(--gradient-warm); box-shadow:0 4px 14px rgba(234,179,8,.28); }
     input, select, textarea {
       padding:.45rem .65rem; border-radius:8px; border:1px solid var(--border);
       background:#fff; color:var(--text); font-size:.875rem; font-family:inherit;
+      transition: border-color .15s ease, box-shadow .15s ease;
     }
-    input:focus, select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(20,184,166,.15); }
+    input:focus, select:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.14); }
     button.action {
-      padding:.45rem .75rem; border-radius:8px; border:none; background:var(--accent);
-      color:#fff; font-size:.875rem; font-weight:600; cursor:pointer; font-family:inherit;
+      padding:.45rem .75rem; border-radius:8px; border:none;
+      background:var(--gradient-primary); color:#fff;
+      font-size:.875rem; font-weight:600; cursor:pointer; font-family:inherit;
+      box-shadow:0 2px 10px rgba(37,99,235,.22);
+      transition: filter .15s ease, box-shadow .15s ease, transform .15s ease;
     }
-    button.action:hover { background:#0d9488; }
-    button.action:disabled { opacity:.45; cursor:not-allowed; }
+    button.action:hover { filter:brightness(1.06); box-shadow:0 4px 16px rgba(37,99,235,.32); transform:translateY(-1px); }
+    button.action:disabled { opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
     button.ghost {
       padding:.4rem .65rem; border-radius:8px; border:1px solid var(--border);
-      background:#fff; color:var(--text); font-size:.875rem; cursor:pointer; font-family:inherit;
+      background:rgba(255,255,255,.85); color:var(--text); font-size:.875rem; cursor:pointer; font-family:inherit;
+      transition: background .15s ease, border-color .15s ease;
     }
-    button.ghost:hover { background:#fafafa; border-color:#d4d4d8; }
-    button.danger { background:var(--err); color:#fff; border:none; }
-    button.danger.ghost { background:#fff; color:var(--err); border-color:#fecaca; }
+    button.ghost:hover { background:#fff; border-color:rgba(37,99,235,.35); }
+    button.danger { background:var(--gradient-rose); color:#fff; border:none; box-shadow:0 2px 10px rgba(239,68,68,.22); }
+    button.danger:hover { filter:brightness(1.05); }
+    button.danger.ghost { background:#fff; color:var(--red-deep); border-color:#fecaca; box-shadow:none; }
     button.icon-btn { padding:.25rem .45rem; min-width:1.75rem; line-height:1; }
     .muted { color:var(--muted); font-size:.85rem; }
     .status-ok { color:var(--ok); }
@@ -64,39 +151,69 @@
     .status-log_only, .status-not_active, .status-stub, .status-warn { color:var(--warn); }
     .hidden { display:none !important; }
     .row { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; align-items:center; }
-    .login { max-width:380px; margin:4rem auto; }
     .login h2 { margin-bottom:.35rem; }
     table { width:100%; border-collapse:collapse; font-size:.875rem; }
     th, td { text-align:left; padding:.55rem .65rem; border-bottom:1px solid var(--border); vertical-align:middle; }
     th { color:var(--muted); font-weight:500; font-size:.8rem; text-transform:uppercase; letter-spacing:.02em; }
     tr.user-row { cursor:pointer; transition:background .12s; }
-    tr.user-row:hover { background:#fafafa; }
-    tr.user-row.expanded { background:var(--accent-soft); }
+    tr.user-row:hover { background:rgba(37,99,235,.05); }
+    tr.user-row.expanded { background:var(--gradient-soft-blue); }
     .row-chevron {
-      display:inline-block; width:.85rem; color:var(--accent); font-weight:700;
-      font-size:.85rem; vertical-align:middle; transition:transform .15s ease;
+      display:inline-block; width:.85rem;
+      background:var(--gradient-primary);
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      font-size:.62rem; line-height:1; vertical-align:middle; transition:transform .15s ease;
     }
     tr.user-row.expanded .row-chevron { transform:rotate(90deg); }
     .chip {
       display:inline-block; padding:.12rem .45rem; border-radius:999px;
-      background:#f4f4f5; font-size:.75rem; font-weight:500; margin-right:.2rem;
+      background:rgba(255,255,255,.8); font-size:.75rem; font-weight:500; margin-right:.2rem;
     }
-    .chip.admin { background:var(--accent-soft); color:#0f766e; }
-    .chip.status-registered { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
-    .chip.status-invited { background:#fffbeb; color:#b45309; border:1px solid #fde68a; }
-    .chip.status-failed { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+    .chip.admin {
+      background:var(--gradient-soft-blue);
+      color:var(--blue-deep);
+      border:1px solid rgba(37,99,235,.22);
+    }
+    .chip.status-registered { background:var(--gradient-soft-cyan); color:#0e7490; border:1px solid rgba(6,182,212,.35); }
+    .chip.status-invited { background:var(--gradient-soft-yellow); color:#a16207; border:1px solid rgba(234,179,8,.35); }
+    .chip.status-failed { background:var(--gradient-soft-red); color:#b91c1c; border:1px solid rgba(239,68,68,.35); }
     .audit-line { padding:.4rem 0; border-bottom:1px solid var(--border); font-size:.875rem; }
     .counts { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:.75rem; }
     .counts.manage-counts { margin-bottom:1rem; }
-    .count { background:var(--card); border:1px solid var(--border); padding:.85rem; border-radius:10px; box-shadow:var(--shadow); }
-    .count strong { display:block; font-size:1.5rem; color:var(--accent); margin-bottom:.15rem; }
+    .count {
+      position:relative; overflow:hidden;
+      background:var(--card); border:1px solid var(--border);
+      padding:.85rem; border-radius:12px; box-shadow:var(--shadow);
+    }
+    .count::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    }
+    .count strong {
+      display:block; font-size:1.5rem; font-weight:700; margin-bottom:.15rem; line-height:1.2;
+    }
+    .count-tone-blue::before { background:var(--gradient-primary); }
+    .count-tone-blue strong { color:var(--blue); }
+    .count-tone-cyan::before { background:var(--gradient-cool); }
+    .count-tone-cyan strong { color:var(--cyan-deep); }
+    .count-tone-yellow::before { background:var(--gradient-amber); }
+    .count-tone-yellow strong { color:var(--yellow-deep); }
+    .count-tone-red::before { background:var(--gradient-rose); }
+    .count-tone-red strong { color:var(--red-deep); }
     .toolbar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem; }
     .toolbar input[type="search"], .toolbar input[type="text"] { flex:1; min-width:160px; }
     .gauge-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:.75rem; margin-bottom:1.25rem; }
     .gauge-card {
-      background:var(--card); border:1px solid var(--border); border-radius:12px;
+      position:relative; overflow:hidden;
+      background:var(--card); border:1px solid var(--border); border-radius:14px;
       padding:.65rem .5rem .5rem; text-align:center; box-shadow:var(--shadow);
     }
+    .gauge-card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    }
+    .gauge-tone-0::before { background:var(--gradient-primary); }
+    .gauge-tone-1::before { background:var(--gradient-cool); }
+    .gauge-tone-2::before { background:var(--gradient-amber); }
+    .gauge-tone-3::before { background:var(--gradient-sky); }
     .gauge-card .gauge-title { font-size:.8rem; font-weight:600; margin-bottom:.15rem; }
     .gauge-card .gauge-detail { font-size:.72rem; color:var(--muted); min-height:1rem; }
     .gauge-card .gauge-pct { font-size:.95rem; font-weight:700; fill:var(--text); }
@@ -107,9 +224,13 @@
       gap:.45rem;
     }
     .status-card {
-      background:var(--card); border-radius:8px; padding:.45rem .55rem; border:1px solid var(--border);
+      background:var(--card); border-radius:10px; padding:.45rem .55rem; border:1px solid var(--border);
       box-shadow:var(--shadow); min-height:0; display:flex; flex-direction:column; gap:.2rem;
+      border-top:3px solid transparent;
     }
+    .status-card:has(.status-ok) { border-top-color:#06b6d4; }
+    .status-card:has(.status-down), .status-card:has(.status-fail), .status-card:has(.status-misconfigured) { border-top-color:#ef4444; }
+    .status-card:has(.status-warn), .status-card:has(.status-log_only), .status-card:has(.status-not_active), .status-card:has(.status-stub) { border-top-color:#eab308; }
     .status-card strong { font-size:.78rem; font-weight:600; line-height:1.2; }
     .status-card .status-label { font-size:.8rem; font-weight:600; text-transform:lowercase; line-height:1.2; }
     .status-card .muted {
@@ -122,7 +243,14 @@
       padding:.4rem .65rem; border-radius:8px; cursor:pointer; font-size:.85rem;
       display:flex; align-items:center; gap:.35rem;
     }
-    .user-menu-trigger:hover { border-color:var(--accent); }
+    .user-menu-trigger:hover { border-color:rgba(37,99,235,.45); }
+    .user-menu-chevron {
+      background:var(--gradient-primary);
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      font-size:.62rem; line-height:1;
+      transition:transform .15s ease;
+    }
+    .user-menu-trigger[aria-expanded="true"] .user-menu-chevron { transform:rotate(180deg); }
     .user-menu-panel {
       position:absolute; right:0; top:calc(100% + .35rem); min-width:280px;
       background:var(--card); border:1px solid var(--border); border-radius:12px;
@@ -131,20 +259,22 @@
     .user-menu-panel h4 { margin:0 0 .65rem; font-size:.9rem; }
     .user-menu-panel input { width:100%; }
     .tree { margin-top:.75rem; }
-    details.tree-node { border:1px solid var(--border); border-radius:10px; margin-bottom:.5rem; background:#fff; }
+    details.tree-node { border:1px solid var(--border); border-radius:12px; margin-bottom:.5rem; background:rgba(255,255,255,.88); }
     details.tree-node > summary {
       padding:.65rem .85rem; cursor:pointer; font-weight:600; font-size:.9rem;
       list-style:none; display:flex; align-items:center; gap:.45rem; flex-wrap:wrap;
+      transition: background .15s ease;
     }
+    details.tree-node[open] > summary { background:var(--gradient-soft-blue); }
     details.tree-node > summary::-webkit-details-marker { display:none; }
     details.tree-node > summary::marker { content:none; }
     details.tree-node > summary::before {
-      content:'>';
+      content:'▶';
       flex-shrink:0;
       width:.85rem;
-      color:var(--accent);
-      font-size:.85rem;
-      font-weight:700;
+      background:var(--gradient-primary);
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      font-size:.62rem;
       line-height:1;
       transition:transform .15s ease;
     }
@@ -158,9 +288,9 @@
     .form-inline { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; margin:.5rem 0; padding:.55rem; background:#fafafa; border-radius:8px; border:1px dashed var(--border); }
     .form-inline input, .form-inline select { min-width:100px; }
     .banner { padding:.45rem .65rem; border-radius:8px; margin:.35rem 0; font-size:.85rem; }
-    .banner-trial { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
-    .banner-paid { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
-    .banner-bad { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+    .banner-trial { background:var(--gradient-soft-yellow); border:1px solid rgba(234,179,8,.35); color:#92400e; }
+    .banner-paid { background:var(--gradient-soft-cyan); border:1px solid rgba(6,182,212,.35); color:#0e7490; }
+    .banner-bad { background:var(--gradient-soft-red); border:1px solid rgba(239,68,68,.35); color:#991b1b; }
     .banner-none { background:#fafafa; border:1px solid var(--border); color:var(--muted); }
     .member-row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:.3rem 0; font-size:.875rem; }
     .payment-row {
@@ -180,17 +310,25 @@
     .modal-card label { display:block; font-size:.82rem; color:var(--muted); margin-bottom:.2rem; margin-top:.5rem; }
     .modal-card input, .modal-card select { width:100%; margin-bottom:.25rem; }
     .modal-actions { display:flex; gap:.5rem; justify-content:flex-end; margin-top:1rem; }
-    .section-head { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; }
+    .section-head { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; flex-wrap:wrap; }
     .section-head h4 { margin:0; flex:1; }
+    .add-form-panel { margin-bottom:.5rem; }
     .pagination {
       display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
       padding:.65rem .85rem; font-size:.875rem;
-      border-top:1px solid var(--border); background:#fafafa;
+      border-top:1px solid var(--border);
+      background:linear-gradient(135deg, rgba(255,255,255,.92) 0%, rgba(238,242,255,.88) 100%);
     }
     .pagination-spacer { flex:1; min-width:.5rem; }
     .pagination select { min-width:4.5rem; }
     .time-mgmt { margin:.5rem 0; padding:.55rem; background:#fff; border:1px solid var(--border); border-radius:8px; }
     .time-mgmt label { font-size:.78rem; color:var(--muted); margin-right:.35rem; }
+    .removed-devices-list { display:flex; flex-direction:column; gap:.35rem; }
+    .removed-device-row {
+      display:block; padding:.45rem .55rem; background:#fff;
+      border:1px solid var(--border); border-radius:8px; font-size:.85rem; line-height:1.4;
+    }
+    .removed-device-row strong { display:block; font-weight:600; color:var(--text); }
     @media (max-width:640px) {
       main { padding:1rem; }
       header { padding:.75rem 1rem; }
@@ -218,7 +356,7 @@
       <div class="user-menu" id="user-menu">
         <button type="button" class="user-menu-trigger" id="admin-user-btn" aria-expanded="false">
           <span id="admin-user"></span>
-          <span aria-hidden="true">▾</span>
+          <span aria-hidden="true" class="user-menu-chevron">▼</span>
         </button>
         <div class="user-menu-panel hidden" id="user-menu-panel">
           <h4>Change password</h4>
@@ -294,6 +432,9 @@ function show(el, on) { el.classList.toggle('hidden', !on); }
 
 function fmt(ts) { return ts ? new Date(ts).toLocaleString() : '—'; }
 function fmtDate(ts) { return ts ? new Date(ts).toLocaleDateString() : '—'; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 function formatBytes(n) {
   if (n == null || n === '' || isNaN(Number(n))) return '—';
@@ -382,7 +523,7 @@ function bindPagination(panel) {
   });
 }
 
-function needleGauge(pct, title, detail) {
+function needleGauge(pct, title, detail, toneIdx = 0) {
   const p = Math.max(0, Math.min(100, Number(pct) || 0));
   const cx = 50, cy = 52, r = 38;
   const angleDeg = 180 - (p / 100) * 180;
@@ -394,14 +535,15 @@ function needleGauge(pct, title, detail) {
   const ax = cx + r * Math.cos(arcRad);
   const ay = cy - r * Math.sin(arcRad);
   const large = p > 50 ? 1 : 0;
-  const color = p >= 90 ? 'var(--err)' : p >= 75 ? 'var(--warn)' : 'var(--accent)';
-  return `<div class="gauge-card">
+  const tones = ['#2563eb', '#06b6d4', '#eab308', '#38bdf8'];
+  const color = p >= 90 ? '#ef4444' : p >= 75 ? '#f59e0b' : tones[toneIdx % tones.length];
+  return `<div class="gauge-card gauge-tone-${toneIdx % 4}">
     <div class="gauge-title">${title}</div>
     <svg viewBox="0 0 100 62" class="gauge-svg" aria-hidden="true">
-      <path d="M 12 52 A 38 38 0 0 1 88 52" fill="none" stroke="#e4e4e7" stroke-width="7" stroke-linecap="round"/>
+      <path d="M 12 52 A 38 38 0 0 1 88 52" fill="none" stroke="#e2e8f0" stroke-width="7" stroke-linecap="round"/>
       ${p > 0 ? `<path d="M 12 52 A 38 38 0 ${large} 1 ${ax.toFixed(2)} ${ay.toFixed(2)}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"/>` : ''}
-      <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(2)}" y2="${ny.toFixed(2)}" stroke="#18181b" stroke-width="2.2" stroke-linecap="round"/>
-      <circle cx="${cx}" cy="${cy}" r="3.5" fill="#18181b"/>
+      <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(2)}" y2="${ny.toFixed(2)}" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="3.5" fill="#0f172a"/>
       <text x="${cx}" y="44" text-anchor="middle" class="gauge-pct" font-size="11" font-weight="700">${Math.round(p)}%</text>
     </svg>
     <div class="gauge-detail">${detail || ''}</div>
@@ -544,7 +686,12 @@ document.getElementById('logout-btn').onclick = () => {
 
 function renderTabs() {
   const nav = document.getElementById('tabs');
-  nav.innerHTML = tabs.map(t => `<button class="${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}</button>`).join('');
+  const tabTones = { status: 'tab-tone-blue', manage: 'tab-tone-cyan', audit: 'tab-tone-warm' };
+  nav.innerHTML = tabs.map(t => {
+    const active = t.id === activeTab;
+    const tone = tabTones[t.id] || 'tab-tone-blue';
+    return `<button class="${active ? 'active ' + tone : ''}" data-tab="${t.id}">${t.label}</button>`;
+  }).join('');
   nav.querySelectorAll('button').forEach(b => b.onclick = () => {
     activeTab = b.dataset.tab;
     renderTabs();
@@ -673,6 +820,14 @@ function renderTimeManagement(d, mw) {
   </div>`;
 }
 
+function renderRemovedDeviceRow(d) {
+  return `<div class="removed-device-row">
+    <strong>${esc(d.display_name || '—')}</strong>
+    <span class="muted">${esc(d.device_id || '—')}</span>
+    <span class="muted"> · binding ${esc(d.binding_id || '—')}${d.removed_at ? ' · removed ' + esc(fmt(d.removed_at)) : ''}</span>
+  </div>`;
+}
+
 function renderDeviceNode(d, hhId, windowsMap) {
   if (d.removed) return '';
   const id = d.binding_id;
@@ -718,15 +873,21 @@ function renderHouseholdNode(hh, u, windowsMap) {
       <details class="tree-node nested">
         <summary>Devices (${devices.length})</summary>
         <div class="tree-body">
-          <div class="form-inline">
-            <input placeholder="Device ID" data-prov-device-id="${hh.id}" />
-            <input placeholder="Enrollment secret" data-prov-secret="${hh.id}" type="password" />
-            <input placeholder="Display name" data-prov-name="${hh.id}" />
-            <input placeholder="Room" data-prov-room="${hh.id}" />
-            <button class="action" data-prov-device="${hh.id}">+ Provision</button>
+          <div class="section-head">
+            <button class="action" type="button" data-show-add="prov-${hh.id}" onclick="event.preventDefault();event.stopPropagation()">+ Add device</button>
+          </div>
+          <div class="add-form-panel hidden" data-add-panel="prov-${hh.id}">
+            <div class="form-inline">
+              <input placeholder="Device ID" data-prov-device-id="${hh.id}" />
+              <input placeholder="Enrollment secret" data-prov-secret="${hh.id}" type="password" />
+              <input placeholder="Display name" data-prov-name="${hh.id}" />
+              <input placeholder="Room" data-prov-room="${hh.id}" />
+              <button class="action" data-prov-device="${hh.id}">Provision</button>
+              <button class="ghost" type="button" data-hide-add="prov-${hh.id}" onclick="event.preventDefault();event.stopPropagation()">Cancel</button>
+            </div>
           </div>
           ${devices.length ? devices.map(d => renderDeviceNode(d, hh.id, windowsMap)).join('') : '<p class="muted">No active devices</p>'}
-          ${removed.length ? `<details class="tree-node nested"><summary class="muted">Removed devices (${removed.length})</summary><div class="tree-body">${removed.map(d => `<div class="muted">${d.display_name} · ${d.device_id}</div>`).join('')}</div></details>` : ''}
+          ${removed.length ? `<details class="tree-node nested"><summary>Removed devices (${removed.length})</summary><div class="tree-body removed-devices-list">${removed.map(d => renderRemovedDeviceRow(d)).join('')}</div></details>` : ''}
         </div>
       </details>
     </div>
@@ -766,16 +927,24 @@ function renderCoMembersSection(u) {
     : '<p class="muted">No co-members in this user\'s households.</p>';
   if (households.length) {
     html += households.map(hh => `
-      <div class="form-inline">
-        <span class="muted" style="min-width:120px">${hh.name}</span>
-        <input placeholder="Email" data-member-email="${hh.id}" style="flex:1;min-width:160px" />
-        <select data-member-role="${hh.id}">
-          <option value="caregiver">caregiver</option>
-          <option value="admin">admin</option>
-          <option value="member">member</option>
-        </select>
-        <label class="muted"><input type="checkbox" data-member-invite="${hh.id}" /> invite if new</label>
-        <button class="action" data-member-add="${hh.id}">+ Add member</button>
+      <div style="margin-top:.65rem">
+        <div class="section-head">
+          <span class="muted">${hh.name}</span>
+          <button class="action" type="button" data-show-add="member-${hh.id}">+ Add member</button>
+        </div>
+        <div class="add-form-panel hidden" data-add-panel="member-${hh.id}">
+          <div class="form-inline">
+            <input placeholder="Email" data-member-email="${hh.id}" style="flex:1;min-width:160px" />
+            <select data-member-role="${hh.id}">
+              <option value="caregiver">caregiver</option>
+              <option value="admin">admin</option>
+              <option value="member">member</option>
+            </select>
+            <label class="muted"><input type="checkbox" data-member-invite="${hh.id}" /> invite if new</label>
+            <button class="action" data-member-add="${hh.id}">Add member</button>
+            <button class="ghost" type="button" data-hide-add="member-${hh.id}">Cancel</button>
+          </div>
+        </div>
       </div>`).join('');
   }
   return html;
@@ -812,7 +981,15 @@ function renderUserDetail(u, windowsMap) {
         <summary>Households (${(u.households || []).length})</summary>
         <div class="tree-body">
           <div class="section-head">
-            <button class="action" data-create-hh="${u.id}">+ Add household</button>
+            <button class="action" type="button" data-show-add="hh-create-${u.id}">+ Add household</button>
+          </div>
+          <div class="add-form-panel hidden" data-add-panel="hh-create-${u.id}">
+            <div class="form-inline">
+              <input placeholder="Household name" data-hh-create-name="${u.id}" value="Home" />
+              <input placeholder="Timezone (optional)" data-hh-create-tz="${u.id}" />
+              <button class="action" data-create-hh="${u.id}">Create</button>
+              <button class="ghost" type="button" data-hide-add="hh-create-${u.id}">Cancel</button>
+            </div>
           </div>
           ${(u.households || []).length
             ? (u.households || []).map(hh => renderHouseholdNode(hh, u, windowsMap)).join('')
@@ -877,7 +1054,7 @@ async function renderManage() {
     const expanded = u.id === expandedUserId;
     const adminChip = u.console_admin ? ' <span class="chip admin">admin</span>' : '';
     return `<tr class="user-row ${expanded ? 'expanded' : ''}" data-user-toggle="${u.id}">
-      <td><span class="row-chevron" aria-hidden="true">&gt;</span> ${u.email}${adminChip}</td>
+      <td><span class="row-chevron" aria-hidden="true">▶</span> ${u.email}${adminChip}</td>
       <td>${u.display_name || '—'}</td>
       <td>${u.disabled_at ? '<span class="status-down">disabled</span>' : 'active'}</td>
       <td class="muted">${fmt(u.last_login_at)}</td>
@@ -906,7 +1083,7 @@ async function renderManage() {
       <button class="action" data-open-add-user>+ Add user</button>
     </div>
     <p class="muted">Click a row to expand user details, households, devices, and payments.</p>
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="card" style="padding:0">
       <table>
         <thead><tr><th>Email</th><th>Name</th><th>Status</th><th>Last login</th><th>Summary</th><th>Subscriptions</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="6" class="muted" style="padding:1rem">No users</td></tr>'}</tbody>
@@ -924,20 +1101,21 @@ async function renderStatus() {
   const net = host.network || {};
 
   const gauges = [];
+  let gaugeTone = 0;
   cpus.forEach((c, i) => {
-    gauges.push(needleGauge(c.usage_pct, c.id || ('CPU ' + (i + 1)), ''));
+    gauges.push(needleGauge(c.usage_pct, c.id || ('CPU ' + (i + 1)), '', gaugeTone++));
   });
   if (mem.used_pct != null || mem.total_bytes) {
-    gauges.push(needleGauge(mem.used_pct, 'Memory', `${formatBytes(mem.used_bytes)} / ${formatBytes(mem.total_bytes)}`));
+    gauges.push(needleGauge(mem.used_pct, 'Memory', `${formatBytes(mem.used_bytes)} / ${formatBytes(mem.total_bytes)}`, gaugeTone++));
   }
   if (storage.used_pct != null || storage.total_bytes) {
     const mount = storage.mount ? ` · ${storage.mount}` : '';
-    gauges.push(needleGauge(storage.used_pct, 'Storage', `${formatBytes(storage.used_bytes)} / ${formatBytes(storage.total_bytes)}${mount}`));
+    gauges.push(needleGauge(storage.used_pct, 'Storage', `${formatBytes(storage.used_bytes)} / ${formatBytes(storage.total_bytes)}${mount}`, gaugeTone++));
   }
   if (net.throughput_pct != null || net.rx_bytes_per_sec != null) {
     const rx = formatBytes(net.rx_bytes_per_sec) + '/s';
     const tx = formatBytes(net.tx_bytes_per_sec) + '/s';
-    gauges.push(needleGauge(net.throughput_pct, 'Network', `↓ ${rx} · ↑ ${tx}`));
+    gauges.push(needleGauge(net.throughput_pct, 'Network', `↓ ${rx} · ↑ ${tx}`, gaugeTone++));
   }
 
   const gaugeHtml = gauges.length
@@ -973,7 +1151,10 @@ function renderCountWidgets(counts) {
     if (!order.includes(k)) entries.push([k, v]);
   }
   return `<div class="counts manage-counts">
-    ${entries.map(([k, v]) => `<div class="count"><strong>${v}</strong>${labels[k] || k}</div>`).join('')}
+    ${entries.map(([k, v], i) => {
+      const tones = ['count-tone-blue', 'count-tone-cyan', 'count-tone-yellow', 'count-tone-red'];
+      return `<div class="count ${tones[i % tones.length]}"><strong>${v}</strong>${labels[k] || k}</div>`;
+    }).join('')}
   </div>`;
 }
 
@@ -1001,8 +1182,30 @@ async function renderAudit() {
     </div>`;
 }
 
+function bindAddFormToggles(panel) {
+  panel.querySelectorAll('[data-show-add]').forEach(b => {
+    b.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = b.dataset.showAdd;
+      panel.querySelector(`[data-add-panel="${id}"]`)?.classList.remove('hidden');
+      b.classList.add('hidden');
+    };
+  });
+  panel.querySelectorAll('[data-hide-add]').forEach(b => {
+    b.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = b.dataset.hideAdd;
+      panel.querySelector(`[data-add-panel="${id}"]`)?.classList.add('hidden');
+      panel.querySelector(`[data-show-add="${id}"]`)?.classList.remove('hidden');
+    };
+  });
+}
+
 function bindPanelActions() {
   const panel = document.getElementById('panel');
+  bindAddFormToggles(panel);
 
   panel.querySelector('[data-audit-search]')?.addEventListener('click', async () => {
     auditSearchQ = document.getElementById('audit-q')?.value || '';
@@ -1065,11 +1268,16 @@ function bindPanelActions() {
 
   panel.querySelectorAll('[data-create-hh]').forEach(b => b.onclick = async (e) => {
     e.stopPropagation();
-    const name = prompt('Household name:', 'Home');
-    if (!name) return;
+    const userId = b.dataset.createHh;
+    const name = panel.querySelector(`[data-hh-create-name="${userId}"]`)?.value?.trim();
+    const timezone = panel.querySelector(`[data-hh-create-tz="${userId}"]`)?.value?.trim() || '';
+    if (!name) return alert('Enter household name');
     try {
-      await api('/v1/admin/households', { method:'POST', body: JSON.stringify({ name, owner_user_id: b.dataset.createHh }) });
-      expandedUserId = b.dataset.createHh;
+      await api('/v1/admin/households', {
+        method:'POST',
+        body: JSON.stringify({ name, owner_user_id: userId, timezone: timezone || undefined }),
+      });
+      expandedUserId = userId;
       await refreshExpandedUser();
     } catch (err) {
       alert(err.message);

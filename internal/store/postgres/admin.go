@@ -311,6 +311,7 @@ type AdminDeviceDetail struct {
 	VNMSLifecycle                 *string    `json:"vnms_lifecycle,omitempty"`
 	ClaimedByEmail                string     `json:"claimed_by_email,omitempty"`
 	Removed                       bool       `json:"removed"`
+	RemovedAt                     *time.Time `json:"removed_at,omitempty"`
 	BatteryVoltageV               *float64   `json:"battery_voltage_v,omitempty"`
 	BatteryStatus                 string     `json:"battery_status,omitempty"`
 	DeviceStatus                  string     `json:"device_status,omitempty"`
@@ -430,12 +431,13 @@ func (s *Store) AdminListHouseholdMembers(ctx context.Context, householdID strin
 
 func (s *Store) AdminListHouseholdDevices(ctx context.Context, householdID string) ([]AdminDeviceDetail, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT b.id, b.device_id, b.display_name, b.room_or_location_label,
+		SELECT DISTINCT ON (b.id)
+		       b.id, b.device_id, b.display_name, b.room_or_location_label,
 		       COALESCE(sub.status, 'none'), COALESCE(sub.service_status, ''),
 		       COALESCE(sub.plan_code, ''), sub.trial_ends_at, sub.current_period_start,
 		       sub.current_period_end, sub.payment_provider, sub.provider_subscription_id,
 		       sub.cancelled_at, b.last_contact_at, b.vnms_lifecycle_cache,
-		       COALESCE(u.email, ''), b.removed_at IS NOT NULL,
+		       COALESCE(u.email, ''), b.removed_at IS NOT NULL, b.removed_at,
 		       COALESCE(m.timezone, ''), COALESCE(m.windows_json::text, '[]'),
 		       COALESCE(m.alert_mode, ''), COALESCE(m.delivery_state, '')
 		FROM device_bindings b
@@ -443,7 +445,7 @@ func (s *Store) AdminListHouseholdDevices(ctx context.Context, householdID strin
 		LEFT JOIN users u ON u.id = b.claimed_by_user_id
 		LEFT JOIN monitored_window_intent m ON m.device_binding_id = b.id
 		WHERE b.household_id = $1
-		ORDER BY b.removed_at NULLS FIRST, b.created_at
+		ORDER BY b.id, b.removed_at NULLS FIRST, b.created_at
 	`, householdID)
 	if err != nil {
 		return nil, err
@@ -458,7 +460,7 @@ func (s *Store) AdminListHouseholdDevices(ctx context.Context, householdID strin
 			&d.SubscriptionStatus, &d.ServiceStatus, &d.PlanCode,
 			&d.TrialEndsAt, &d.CurrentPeriodStart, &d.CurrentPeriodEnd,
 			&d.PaymentProvider, &d.ProviderSubscriptionID, &d.CancelledAt,
-			&d.LastContactAt, &d.VNMSLifecycle, &d.ClaimedByEmail, &d.Removed,
+			&d.LastContactAt, &d.VNMSLifecycle, &d.ClaimedByEmail, &d.Removed, &d.RemovedAt,
 			&tz, &windowsJSON, &alertMode, &delivery,
 		); err != nil {
 			return nil, err

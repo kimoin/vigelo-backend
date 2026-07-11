@@ -32,15 +32,38 @@ Hard-refresh (`Cmd+Shift+R`) after server updates — admin assets use no-cache 
 
 ## UI overview
 
-Light theme (soft zinc background, white cards, teal accent). Three tabs:
+Modern light theme: soft gradient page background, frosted-glass header, white cards.
+Accent palette uses **blue, cyan, yellow, and red** gradients (not a single mint/teal
+highlight). Three tabs:
 
-| Tab | Purpose |
-|-----|---------|
-| **Status** | Host needle gauges + compact service health grid — **default tab on login** |
-| **Manage** | Count widgets, user search, collapsible user/household/device tree |
-| **Audit log** | Searchable audit trail with pagination |
+| Tab | Purpose | Active tab gradient |
+|-----|---------|---------------------|
+| **Status** | Host needle gauges + compact service health grid — **default tab on login** | Blue → cyan |
+| **Manage** | Count widgets, user search, collapsible user/household/device tree | Cyan → indigo |
+| **Audit log** | Searchable audit trail with pagination | Yellow → red |
 
-Collapsible sections use a **`>`** chevron that rotates when expanded.
+Collapsible sections use a **▶** triangle that rotates downward when expanded.
+User rows in the Manage table use the same triangle affordance.
+
+### Progressive disclosure (add forms)
+
+Inline “add” forms are **hidden by default**. Click the relevant **+ Add …** button
+to reveal fields; **Cancel** hides them again without submitting.
+
+| Location | Button | Revealed fields |
+|----------|--------|-----------------|
+| Households (user tree) | **+ Add household** | Name, optional timezone |
+| Devices (per household) | **+ Add device** | Device ID, enrollment secret, display name, room |
+| Co-members (per household) | **+ Add member** | Email, role, invite-if-new checkbox |
+
+**+ Add user** (Manage toolbar) opens a modal — same pattern, no inline clutter.
+
+### Removed devices
+
+Under each household’s **Devices** section, removed bindings appear in a collapsible
+**Removed devices (N)** list. Each row shows display name, device ID, binding ID, and
+`removed_at` timestamp. The admin API includes `removed_at` on device detail JSON and
+deduplicates bindings with `DISTINCT ON (b.id)` in the household device query.
 
 ## Status tab
 
@@ -81,7 +104,8 @@ Status values: `ok`, `fail`, `down`, `log_only`, `unconfigured`, `not_active`, `
 ### Count widgets (top row)
 
 Summary counts from `GET /v1/admin/dashboard`: users, households, devices,
-trialing subscriptions, active alerts.
+trialing subscriptions, active alerts. Each widget has a colour-coded gradient top
+bar (blue, cyan, yellow, red cycling) and a matching number colour.
 
 ### Search and pagination
 
@@ -121,14 +145,14 @@ on creation. Fields: email, password (min 8), display name, account type
 
 ### User list and collapsible tree
 
-Click a user row (`>` chevron) to expand. Tree sections:
+Click a user row (▶ triangle) to expand. Tree sections:
 
 | Section | Actions |
 |---------|---------|
 | **User** | Disable, enable, delete (if allowed) |
-| **Households** | + add household, − archive/remove; nested devices |
-| **Devices** | + provision, unprovision, remove; time windows; last seen & battery |
-| **Co-members** | List other members with household + role; + add per household |
+| **Households** | **+ Add household** (inline form on demand), − archive/remove; nested devices |
+| **Devices** | **+ Add device** (inline form on demand), unprovision, remove; time windows; last seen & battery |
+| **Co-members** | List other members with household + role; **+ Add member** per household (form on demand) |
 | **Payments** | Subscription status; extend trial (custom days); mark paid |
 
 **Delete user** (`DELETE /v1/admin/users/{user_id}`):
@@ -154,9 +178,9 @@ Body for PUT: `{ "windows": [{ "start_time": "08:00", "end_time": "20:00" }], "a
 
 | Badge | Meaning |
 |-------|---------|
-| **Invited** (yellow) | Pending invite; shows invitation time and expiry |
-| **Registered** (green) | User joined the household |
-| **Failed** (red) | Invite expired without acceptance |
+| **Invited** (yellow gradient) | Pending invite; shows invitation time and expiry |
+| **Registered** (cyan gradient) | User joined the household |
+| **Failed** (red gradient) | Invite expired without acceptance |
 
 Use **invite if new** when adding a member by email — creates invite if user does not exist.
 

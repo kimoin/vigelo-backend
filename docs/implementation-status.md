@@ -1,6 +1,6 @@
 # VSRV Implementation Status
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 This document records what is **implemented and verified** in `vigelo-backend`
 (VSRV) through **Phase 7 deploy readiness**, including the admin console,
@@ -351,10 +351,13 @@ Alerts are stored in Postgres. `GET /alerts` and `POST .../ack` use the database
 ### Admin console (`internal/adminweb/`)
 
 - Embedded light-theme UI at `/admin/` — **Status**, **Manage**, **Audit log**
+- Multi-colour gradient theme (blue / cyan / yellow / red); triangle expand/collapse
 - Auth via normal login + `VSRV_ADMIN_EMAILS` allowlist
 - **Status:** host needle gauges (CPU, memory, storage, network) + compact service grid
-- **Manage:** dashboard counts, search filters, pagination (25/100), collapsible user tree
+- **Manage:** colour-coded dashboard counts, search filters, pagination (25/100),
+  collapsible user tree; add forms hidden until **+ Add …** clicked
 - User lifecycle: create (no invite email), delete (protected `.env` admins), disable/enable
+- Removed devices: full list with binding ID and `removed_at` in household device tree
 - Password change from header menu (`POST /v1/auth/change-password`)
 - Device ops: VNMS enable/disable, provision, trial extend, monitored windows, move, delete
 - Live service health: Database, VNMS, MailerSend, GatewayAPI, ntfy
