@@ -204,6 +204,39 @@ func (s *Server) handlePasswordResetComplete(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, map[string]string{"status": "password_updated"})
 }
 
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.CurrentPassword == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "current password is required", "current_password")
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		writeError(w, http.StatusBadRequest, "invalid_request", "password must be at least 8 characters", "new_password")
+		return
+	}
+	if req.CurrentPassword == req.NewPassword {
+		writeError(w, http.StatusBadRequest, "invalid_request", "new password must differ from current password", "new_password")
+		return
+	}
+	userID := userIDFromContext(r.Context())
+	if err := s.pg.ChangePassword(r.Context(), userID, req.CurrentPassword, req.NewPassword); writeStoreError(w, err) {
+		return
+	}
+	email, _ := s.pg.GetUserEmail(r.Context(), userID)
+	s.recordAudit(r, audit.Entry{
+		ActorUserID: userID, Action: "user.password_changed",
+		ResourceType: "user", ResourceID: userID,
+		Message: fmt.Sprintf("%s changed password", email),
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "password_updated"})
+}
+
 func fallback(v, fb string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {

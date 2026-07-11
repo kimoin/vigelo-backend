@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,7 +15,11 @@ import (
 	"github.com/kimoin/vigelo-backend/internal/ids"
 )
 
-var ErrUserNotFound = errors.New("user not found")
+var (
+	ErrUserNotFound     = errors.New("user not found")
+	ErrProtectedUser    = errors.New("protected user cannot be deleted")
+	ErrCannotDeleteSelf = errors.New("cannot delete your own account")
+)
 
 type AdminUserRow struct {
 	ID                  string     `json:"id"`
@@ -23,6 +28,8 @@ type AdminUserRow struct {
 	DisabledAt          *time.Time `json:"disabled_at,omitempty"`
 	LastLoginAt         *time.Time `json:"last_login_at,omitempty"`
 	EmailVerified       bool       `json:"email_verified"`
+	ConsoleAdmin        bool       `json:"console_admin"`
+	Deletable           bool       `json:"deletable"`
 	CreatedAt           time.Time  `json:"created_at"`
 	Households          int        `json:"households"`
 	Devices             int        `json:"devices"`
@@ -32,42 +39,123 @@ type AdminUserRow struct {
 	PushPlatforms       []string   `json:"push_platforms"`
 }
 
-func (s *Store) AdminSearchUsers(ctx context.Context, q string, limit, offset int) ([]AdminUserRow, int, error) {
+func (s *Store) AdminSearchUsers(ctx context.Context, q, filter string, limit, offset int) ([]AdminUserRow, int, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
+	filter = strings.ToLower(strings.TrimSpace(filter))
+	if filter == "" {
+		filter = "email"
+	}
+	q = strings.TrimSpace(q)
 	pattern := "%" + q + "%"
+
+	var countSQL, listSQL string
+	var args []any
+
+	switch filter {
+	case "device_id":
+		countSQL = `
+			SELECT COUNT(DISTINCT u.id) FROM users u
+			JOIN household_members hm ON hm.user_id = u.id
+			JOIN device_bindings b ON b.household_id = hm.household_id AND b.removed_at IS NULL
+			WHERE ($1 = '' OR b.device_id ILIKE $2)`
+		listSQL = `
+			SELECT DISTINCT u.id, u.email, u.display_name, u.disabled_at, u.last_login_at,
+			       u.email_verified_at IS NOT NULL, u.created_at
+			FROM users u
+			JOIN household_members hm ON hm.user_id = u.id
+			JOIN device_bindings b ON b.household_id = hm.household_id AND b.removed_at IS NULL
+			WHERE ($1 = '' OR b.device_id ILIKE $2)
+			ORDER BY u.created_at DESC
+			LIMIT $3 OFFSET $4`
+		args = []any{q, pattern, limit, offset}
+	case "expired_trial":
+		countSQL = `
+			SELECT COUNT(DISTINCT u.id) FROM users u
+			JOIN household_members hm ON hm.user_id = u.id
+			JOIN device_bindings b ON b.household_id = hm.household_id AND b.removed_at IS NULL
+			JOIN subscriptions sub ON sub.device_binding_id = b.id
+			WHERE sub.status = 'trialing' AND sub.trial_ends_at IS NOT NULL AND sub.trial_ends_at < now()
+			  AND ($1 = '' OR u.email ILIKE $2 OR u.display_name ILIKE $2 OR b.device_id ILIKE $2)`
+		listSQL = `
+			SELECT DISTINCT u.id, u.email, u.display_name, u.disabled_at, u.last_login_at,
+			       u.email_verified_at IS NOT NULL, u.created_at
+			FROM users u
+			JOIN household_members hm ON hm.user_id = u.id
+			JOIN device_bindings b ON b.household_id = hm.household_id AND b.removed_at IS NULL
+			JOIN subscriptions sub ON sub.device_binding_id = b.id
+			WHERE sub.status = 'trialing' AND sub.trial_ends_at IS NOT NULL AND sub.trial_ends_at < now()
+			  AND ($1 = '' OR u.email ILIKE $2 OR u.display_name ILIKE $2 OR b.device_id ILIKE $2)
+			ORDER BY u.created_at DESC
+			LIMIT $3 OFFSET $4`
+		args = []any{q, pattern, limit, offset}
+	case "failed_payment":
+		countSQL = `
+			SELECT COUNT(DISTINCT u.id) FROM users u
+			JOIN household_members hm ON hm.user_id = u.id
+			JOIN device_bindings b ON b.household_id = hm.household_id AND b.removed_at IS NULL
+			JOIN subscriptions sub ON sub.device_binding_id = b.id
+			WHERE (sub.status = 'past_due' OR sub.service_status = 'service_suspended')
+			  AND ($1 = '' OR u.email ILIKE $2 OR u.display_name ILIKE $2 OR b.device_id ILIKE $2)`
+		listSQL = `
+			SELECT DISTINCT u.id, u.email, u.display_name, u.disabled_at, u.last_login_at,
+			       u.email_verified_at IS NOT NULL, u.created_at
+			FROM users u
+			JOIN household_members hm ON hm.user_id = u.id
+			JOIN device_bindings b ON b.household_id = hm.household_id AND b.removed_at IS NULL
+			JOIN subscriptions sub ON sub.device_binding_id = b.id
+			WHERE (sub.status = 'past_due' OR sub.service_status = 'service_suspended')
+			  AND ($1 = '' OR u.email ILIKE $2 OR u.display_name ILIKE $2 OR b.device_id ILIKE $2)
+			ORDER BY u.created_at DESC
+			LIMIT $3 OFFSET $4`
+		args = []any{q, pattern, limit, offset}
+	default: // email
+		if q != "" {
+			countSQL = `
+				SELECT COUNT(*) FROM users u
+				WHERE u.email ILIKE $1 OR u.display_name ILIKE $1 OR u.id ILIKE $1`
+			listSQL = `
+				SELECT u.id, u.email, u.display_name, u.disabled_at, u.last_login_at,
+				       u.email_verified_at IS NOT NULL, u.created_at
+				FROM users u
+				WHERE u.email ILIKE $1 OR u.display_name ILIKE $1 OR u.id ILIKE $1
+				ORDER BY u.created_at DESC
+				LIMIT $2 OFFSET $3`
+			args = []any{pattern, limit, offset}
+		} else {
+			countSQL = `SELECT COUNT(*) FROM users`
+			listSQL = `
+				SELECT u.id, u.email, u.display_name, u.disabled_at, u.last_login_at,
+				       u.email_verified_at IS NOT NULL, u.created_at
+				FROM users u
+				ORDER BY u.created_at DESC
+				LIMIT $1 OFFSET $2`
+			args = []any{limit, offset}
+		}
+	}
+
 	var total int
 	var rows pgx.Rows
 	var err error
-	if q != "" {
-		err = s.pool.QueryRow(ctx, `
-			SELECT COUNT(*) FROM users u
-			WHERE u.email ILIKE $1 OR u.display_name ILIKE $1 OR u.id ILIKE $1
-		`, pattern).Scan(&total)
+	if filter == "email" && q == "" {
+		err = s.pool.QueryRow(ctx, countSQL).Scan(&total)
 		if err != nil {
 			return nil, 0, err
 		}
-		rows, err = s.pool.Query(ctx, `
-			SELECT u.id, u.email, u.display_name, u.disabled_at, u.last_login_at,
-			       u.email_verified_at IS NOT NULL, u.created_at
-			FROM users u
-			WHERE u.email ILIKE $1 OR u.display_name ILIKE $1 OR u.id ILIKE $1
-			ORDER BY u.created_at DESC
-			LIMIT $2 OFFSET $3
-		`, pattern, limit, offset)
+		rows, err = s.pool.Query(ctx, listSQL, args...)
+	} else if filter == "email" {
+		err = s.pool.QueryRow(ctx, countSQL, args[0]).Scan(&total)
+		if err != nil {
+			return nil, 0, err
+		}
+		rows, err = s.pool.Query(ctx, listSQL, args...)
 	} else {
-		err = s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&total)
+		err = s.pool.QueryRow(ctx, countSQL, args[0], args[1]).Scan(&total)
 		if err != nil {
 			return nil, 0, err
 		}
-		rows, err = s.pool.Query(ctx, `
-			SELECT u.id, u.email, u.display_name, u.disabled_at, u.last_login_at,
-			       u.email_verified_at IS NOT NULL, u.created_at
-			FROM users u
-			ORDER BY u.created_at DESC
-			LIMIT $1 OFFSET $2
-		`, limit, offset)
+		rows, err = s.pool.Query(ctx, listSQL, args...)
 	}
 	if err != nil {
 		return nil, 0, err
@@ -164,19 +252,21 @@ func formatUserSubscriptionSummary(devices, trialing, active int) string {
 }
 
 type AdminUserDetail struct {
-	ID            string                  `json:"id"`
-	Email         string                  `json:"email"`
-	DisplayName   string                  `json:"display_name"`
-	Phone         *string                 `json:"phone,omitempty"`
-	Timezone      *string                 `json:"timezone,omitempty"`
-	DisabledAt    *time.Time              `json:"disabled_at,omitempty"`
-	LastLoginAt   *time.Time              `json:"last_login_at,omitempty"`
-	EmailVerified bool                    `json:"email_verified"`
-	CreatedAt     time.Time               `json:"created_at"`
-	Households    []AdminHouseholdDetail  `json:"households"`
-	Subscriptions []AdminDeviceDetail     `json:"subscriptions"`
-	Sessions      []AdminSessionRow       `json:"sessions"`
-	PushTokens    []AdminPushTokenRow     `json:"push_tokens"`
+	ID            string                 `json:"id"`
+	Email         string                 `json:"email"`
+	DisplayName   string                 `json:"display_name"`
+	Phone         *string                `json:"phone,omitempty"`
+	Timezone      *string                `json:"timezone,omitempty"`
+	DisabledAt    *time.Time             `json:"disabled_at,omitempty"`
+	LastLoginAt   *time.Time             `json:"last_login_at,omitempty"`
+	EmailVerified bool                   `json:"email_verified"`
+	ConsoleAdmin  bool                   `json:"console_admin"`
+	Deletable     bool                   `json:"deletable"`
+	CreatedAt     time.Time              `json:"created_at"`
+	Households    []AdminHouseholdDetail `json:"households"`
+	Subscriptions []AdminDeviceDetail    `json:"subscriptions"`
+	Sessions      []AdminSessionRow      `json:"sessions"`
+	PushTokens    []AdminPushTokenRow    `json:"push_tokens"`
 }
 
 type AdminHouseholdDetail struct {
@@ -217,10 +307,17 @@ type AdminDeviceDetail struct {
 	ProviderSubscriptionID *string    `json:"provider_subscription_id,omitempty"`
 	CancelledAt            *time.Time `json:"cancelled_at,omitempty"`
 	PaymentSummary         string     `json:"payment_summary"`
-	LastContactAt          *time.Time `json:"last_contact_at,omitempty"`
-	VNMSLifecycle          *string    `json:"vnms_lifecycle,omitempty"`
-	ClaimedByEmail         string     `json:"claimed_by_email,omitempty"`
-	Removed                bool       `json:"removed"`
+	LastContactAt                 *time.Time `json:"last_contact_at,omitempty"`
+	VNMSLifecycle                 *string    `json:"vnms_lifecycle,omitempty"`
+	ClaimedByEmail                string     `json:"claimed_by_email,omitempty"`
+	Removed                       bool       `json:"removed"`
+	BatteryVoltageV               *float64   `json:"battery_voltage_v,omitempty"`
+	BatteryStatus                 string     `json:"battery_status,omitempty"`
+	DeviceStatus                  string     `json:"device_status,omitempty"`
+	MonitoredWindowsSummary       string     `json:"monitored_windows_summary,omitempty"`
+	MonitoredWindowAlertMode      string     `json:"monitored_window_alert_mode,omitempty"`
+	MonitoredWindowsDeliveryState string     `json:"monitored_windows_delivery_state,omitempty"`
+	MonitoredTimezone             string     `json:"monitored_timezone,omitempty"`
 }
 
 type AdminHouseholdMember struct {
@@ -338,10 +435,13 @@ func (s *Store) AdminListHouseholdDevices(ctx context.Context, householdID strin
 		       COALESCE(sub.plan_code, ''), sub.trial_ends_at, sub.current_period_start,
 		       sub.current_period_end, sub.payment_provider, sub.provider_subscription_id,
 		       sub.cancelled_at, b.last_contact_at, b.vnms_lifecycle_cache,
-		       COALESCE(u.email, ''), b.removed_at IS NOT NULL
+		       COALESCE(u.email, ''), b.removed_at IS NOT NULL,
+		       COALESCE(m.timezone, ''), COALESCE(m.windows_json::text, '[]'),
+		       COALESCE(m.alert_mode, ''), COALESCE(m.delivery_state, '')
 		FROM device_bindings b
 		LEFT JOIN subscriptions sub ON sub.device_binding_id = b.id
 		LEFT JOIN users u ON u.id = b.claimed_by_user_id
+		LEFT JOIN monitored_window_intent m ON m.device_binding_id = b.id
 		WHERE b.household_id = $1
 		ORDER BY b.removed_at NULLS FIRST, b.created_at
 	`, householdID)
@@ -352,15 +452,21 @@ func (s *Store) AdminListHouseholdDevices(ctx context.Context, householdID strin
 	var out []AdminDeviceDetail
 	for rows.Next() {
 		var d AdminDeviceDetail
+		var windowsJSON, tz, alertMode, delivery string
 		if err := rows.Scan(
 			&d.BindingID, &d.DeviceID, &d.DisplayName, &d.RoomLabel,
 			&d.SubscriptionStatus, &d.ServiceStatus, &d.PlanCode,
 			&d.TrialEndsAt, &d.CurrentPeriodStart, &d.CurrentPeriodEnd,
 			&d.PaymentProvider, &d.ProviderSubscriptionID, &d.CancelledAt,
 			&d.LastContactAt, &d.VNMSLifecycle, &d.ClaimedByEmail, &d.Removed,
+			&tz, &windowsJSON, &alertMode, &delivery,
 		); err != nil {
 			return nil, err
 		}
+		d.MonitoredTimezone = tz
+		d.MonitoredWindowAlertMode = alertMode
+		d.MonitoredWindowsDeliveryState = delivery
+		d.MonitoredWindowsSummary = summarizeWindowsJSON(windowsJSON)
 		d.PaymentSummary = summarizePayment(d)
 		out = append(out, d)
 	}
@@ -405,6 +511,30 @@ func (s *Store) AdminListUserSubscriptions(ctx context.Context, userID string) (
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+func summarizeWindowsJSON(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" || raw == "null" {
+		return "not configured"
+	}
+	var windows []struct {
+		StartTime string `json:"start_time"`
+		EndTime   string `json:"end_time"`
+	}
+	if err := json.Unmarshal([]byte(raw), &windows); err != nil || len(windows) == 0 {
+		return "not configured"
+	}
+	parts := make([]string, 0, len(windows))
+	for _, w := range windows {
+		if w.StartTime != "" && w.EndTime != "" {
+			parts = append(parts, w.StartTime+"–"+w.EndTime)
+		}
+	}
+	if len(parts) == 0 {
+		return "not configured"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func summarizePayment(d AdminDeviceDetail) string {
@@ -513,6 +643,195 @@ func (s *Store) AdminSetUserDisabled(ctx context.Context, userID string, disable
 		return ErrUserNotFound
 	}
 	return nil
+}
+
+type AdminCreateUserResult struct {
+	User      domain.User
+	Household domain.Household
+}
+
+// AdminCreateUser registers a user account immediately (email verified, no invite email).
+func (s *Store) AdminCreateUser(ctx context.Context, email, password, displayName, timezone string) (AdminCreateUserResult, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return AdminCreateUserResult{}, errors.New("email required")
+	}
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		return AdminCreateUserResult{}, err
+	}
+	if displayName == "" {
+		displayName = email
+	}
+	if timezone == "" {
+		timezone = "Europe/Helsinki"
+	}
+	userID := ids.New("user")
+	householdID := ids.New("hh")
+	now := time.Now().UTC()
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return AdminCreateUserResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO users (id, email, display_name, password_hash, email_verified_at, timezone, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $5)
+	`, userID, email, displayName, hash, now, timezone)
+	if pgUniqueViolation(err) {
+		return AdminCreateUserResult{}, auth.ErrEmailTaken
+	}
+	if err != nil {
+		return AdminCreateUserResult{}, err
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO households (id, name, timezone, created_by_user_id, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, householdID, "Home", timezone, userID, now)
+	if err != nil {
+		return AdminCreateUserResult{}, err
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO household_members (household_id, user_id, role, created_at)
+		VALUES ($1, $2, 'owner', $3)
+	`, householdID, userID, now)
+	if err != nil {
+		return AdminCreateUserResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return AdminCreateUserResult{}, err
+	}
+
+	return AdminCreateUserResult{
+		User: domain.User{
+			ID:              userID,
+			Email:           email,
+			DisplayName:     displayName,
+			EmailVerifiedAt: &now,
+			Timezone:        &timezone,
+			CreatedAt:       now,
+		},
+		Household: domain.Household{
+			ID:        householdID,
+			Name:      "Home",
+			Timezone:  timezone,
+			OwnerID:   userID,
+			Role:      "owner",
+			CreatedAt: now,
+		},
+	}, nil
+}
+
+// AdminDeleteUser permanently removes a user account and cleans up owned households.
+func (s *Store) AdminDeleteUser(ctx context.Context, userID string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var email string
+	err = tx.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrUserNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM household_invites WHERE invited_by = $1 OR lower(email) = lower($2)
+	`, userID, email); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE device_bindings SET claimed_by_user_id = NULL WHERE claimed_by_user_id = $1
+	`, userID); err != nil {
+		return err
+	}
+
+	rows, err := tx.Query(ctx, `SELECT id FROM households WHERE created_by_user_id = $1`, userID)
+	if err != nil {
+		return err
+	}
+	var owned []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		owned = append(owned, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, hhID := range owned {
+		if _, err := tx.Exec(ctx, `
+			UPDATE households SET archived_at = COALESCE(archived_at, now()) WHERE id = $1
+		`, hhID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE device_bindings
+			SET removed_at = now(), removed_reason = 'user_deleted', updated_at = now()
+			WHERE household_id = $1 AND removed_at IS NULL
+		`, hhID); err != nil {
+			return err
+		}
+
+		var otherMembers int
+		if err := tx.QueryRow(ctx, `
+			SELECT COUNT(*) FROM household_members WHERE household_id = $1 AND user_id <> $2
+		`, hhID, userID).Scan(&otherMembers); err != nil {
+			return err
+		}
+		if otherMembers == 0 {
+			if _, err := tx.Exec(ctx, `DELETE FROM households WHERE id = $1`, hhID); err != nil {
+				return err
+			}
+			continue
+		}
+
+		var successor string
+		err = tx.QueryRow(ctx, `
+			SELECT user_id FROM household_members
+			WHERE household_id = $1 AND user_id <> $2
+			ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'caregiver' THEN 2 ELSE 3 END, created_at
+			LIMIT 1
+		`, hhID, userID).Scan(&successor)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE households SET created_by_user_id = $2 WHERE id = $1
+		`, hhID, successor); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
+	`, userID); err != nil {
+		return err
+	}
+
+	tag, err := tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *Store) AdminExtendTrial(ctx context.Context, bindingID string, days int) error {

@@ -12,5 +12,6 @@ var (
 	ErrAlreadyMember    = errors.New("already a household member")
 	ErrForbidden        = errors.New("forbidden")
 	ErrUserDisabled     = errors.New("user disabled")
+	ErrWrongPassword    = errors.New("current password is incorrect")
 	ErrDatabaseRequired = errors.New("database required")
 )

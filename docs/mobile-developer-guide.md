@@ -1117,6 +1117,7 @@ For full local setup see [`operations.md`](operations.md).
 | POST | `/v1/auth/verify-email` | — | — |
 | POST | `/v1/auth/password-reset/request` | — | — |
 | POST | `/v1/auth/password-reset/complete` | — | — |
+| POST | `/v1/auth/change-password` | Bearer | Changes password; keeps current session |
 | GET | `/v1/me` | Bearer | — |
 | PATCH | `/v1/me` | Bearer | — |
 | GET | `/v1/households` | Bearer | member |

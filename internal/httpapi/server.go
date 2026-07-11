@@ -128,6 +128,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/auth/verify-email", s.handleVerifyEmail)
 	mux.HandleFunc("POST /v1/auth/password-reset/request", s.handlePasswordResetRequest)
 	mux.HandleFunc("POST /v1/auth/password-reset/complete", s.handlePasswordResetComplete)
+	mux.HandleFunc("POST /v1/auth/change-password", s.auth(s.handleChangePassword))
 	mux.HandleFunc("GET /v1/me", s.auth(s.handleMe))
 	mux.HandleFunc("PATCH /v1/me", s.auth(s.handlePatchMe))
 
@@ -210,6 +211,8 @@ func writeStoreError(w http.ResponseWriter, err error) bool {
 		writeError(w, http.StatusConflict, "conflict", "email is already registered", "email")
 	case errors.Is(err, auth.ErrInvalidLogin):
 		writeError(w, http.StatusUnauthorized, "unauthorized", "invalid email or password", "")
+	case errors.Is(err, auth.ErrWrongPassword):
+		writeError(w, http.StatusUnauthorized, "unauthorized", "current password is incorrect", "current_password")
 	case errors.Is(err, auth.ErrInvalidSession), errors.Is(err, auth.ErrUserDisabled):
 		writeError(w, http.StatusUnauthorized, "unauthorized", "invalid or expired session", "")
 	case errors.Is(err, auth.ErrInvalidToken):

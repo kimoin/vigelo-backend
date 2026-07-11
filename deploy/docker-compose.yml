@@ -80,8 +80,10 @@ services:
       VSRV_INVITE_TTL_DAYS: ${VSRV_INVITE_TTL_DAYS:-7}
       VSRV_VERIFY_EMAIL_TTL_HOURS: ${VSRV_VERIFY_EMAIL_TTL_HOURS:-48}
       VSRV_RESET_PASSWORD_TTL_HOURS: ${VSRV_RESET_PASSWORD_TTL_HOURS:-2}
+      VSRV_PROC_ROOT: /host/proc
     volumes:
       - ./certs:/certs:ro
+      - /proc:/host/proc:ro
     expose:
       - "8090"
     restart: unless-stopped

@@ -132,6 +132,13 @@ service unavailable.
 | `VSRV_VERIFY_EMAIL_TTL_HOURS` | `48` |
 | `VSRV_RESET_PASSWORD_TTL_HOURS` | `2` |
 
+### Admin Status (host metrics)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VSRV_PROC_ROOT` | `/proc` | Host `/proc` path for CPU/memory gauges (production Docker: `/host/proc`) |
+| `VSRV_STORAGE_PATH` | `/` | Mount point for storage gauge |
+
 ---
 
 ## Background workers

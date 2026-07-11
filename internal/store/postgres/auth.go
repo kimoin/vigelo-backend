@@ -253,3 +253,24 @@ func (s *Store) VerifyEmail(ctx context.Context, rawToken string) error {
 	}
 	return tx.Commit(ctx)
 }
+
+func (s *Store) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	var hash string
+	err := s.pool.QueryRow(ctx, `SELECT password_hash FROM users WHERE id = $1`, userID).Scan(&hash)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return auth.ErrInvalidSession
+	}
+	if err != nil {
+		return err
+	}
+	ok, err := auth.VerifyPassword(currentPassword, hash)
+	if err != nil || !ok {
+		return auth.ErrWrongPassword
+	}
+	newHash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `UPDATE users SET password_hash = $2 WHERE id = $1`, userID, newHash)
+	return err
+}

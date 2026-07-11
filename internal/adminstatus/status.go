@@ -26,6 +26,7 @@ type Checker struct {
 	Mailer email.Sender
 	SMS    sms.Sender
 	Push   push.Sender
+	host   *hostSampler
 }
 
 type ServiceStatus struct {

@@ -126,6 +126,7 @@ require `Authorization: Bearer <access_token>`.
 | POST | `/v1/auth/verify-email` | Email verification token |
 | POST | `/v1/auth/password-reset/request` | Sends reset email |
 | POST | `/v1/auth/password-reset/complete` | Sets new password |
+| POST | `/v1/auth/change-password` | Change password while logged in (Bearer) |
 | GET | `/v1/me` | Current user |
 | PATCH | `/v1/me` | `display_name`, `timezone` |
 
@@ -349,10 +350,13 @@ Alerts are stored in Postgres. `GET /alerts` and `POST .../ack` use the database
 
 ### Admin console (`internal/adminweb/`)
 
-- Embedded UI at `/admin/` — Users, Status, Audit log, Dashboard
+- Embedded light-theme UI at `/admin/` — **Status**, **Manage**, **Audit log**
 - Auth via normal login + `VSRV_ADMIN_EMAILS` allowlist
-- User drill-down: households, members (invite status), devices, subscriptions
-- Device ops: VNMS enable/disable, provision, trial extend, move, delete
+- **Status:** host needle gauges (CPU, memory, storage, network) + compact service grid
+- **Manage:** dashboard counts, search filters, pagination (25/100), collapsible user tree
+- User lifecycle: create (no invite email), delete (protected `.env` admins), disable/enable
+- Password change from header menu (`POST /v1/auth/change-password`)
+- Device ops: VNMS enable/disable, provision, trial extend, monitored windows, move, delete
 - Live service health: Database, VNMS, MailerSend, GatewayAPI, ntfy
 
 See [`admin-console.md`](admin-console.md).

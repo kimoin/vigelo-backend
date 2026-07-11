@@ -66,6 +66,7 @@ POST /v1/auth/logout-all
 POST /v1/auth/verify-email
 POST /v1/auth/password-reset/request
 POST /v1/auth/password-reset/complete
+POST /v1/auth/change-password   # Bearer; current + new password
 GET  /v1/me
 PATCH /v1/me
 ```

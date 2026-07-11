@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -9,7 +10,9 @@ import (
 	"time"
 
 	"github.com/kimoin/vigelo-backend/internal/audit"
+	"github.com/kimoin/vigelo-backend/internal/auth"
 	"github.com/kimoin/vigelo-backend/internal/devices"
+	"github.com/kimoin/vigelo-backend/internal/domain"
 	"github.com/kimoin/vigelo-backend/internal/store/postgres"
 )
 
@@ -20,7 +23,9 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/admin/audit-log", s.admin(s.handleAdminAuditLog))
 
 	mux.HandleFunc("GET /v1/admin/users", s.admin(s.handleAdminListUsers))
+	mux.HandleFunc("POST /v1/admin/users", s.admin(s.handleAdminCreateUser))
 	mux.HandleFunc("GET /v1/admin/users/{user_id}", s.admin(s.handleAdminGetUser))
+	mux.HandleFunc("DELETE /v1/admin/users/{user_id}", s.admin(s.handleAdminDeleteUser))
 	mux.HandleFunc("POST /v1/admin/users/{user_id}/disable", s.admin(s.handleAdminDisableUser))
 	mux.HandleFunc("POST /v1/admin/users/{user_id}/enable", s.admin(s.handleAdminEnableUser))
 
@@ -39,6 +44,8 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/admin/devices/{device_binding_id}/move", s.admin(s.handleAdminMoveDevice))
 	mux.HandleFunc("POST /v1/admin/devices/{device_binding_id}/extend-trial", s.admin(s.handleAdminExtendTrial))
 	mux.HandleFunc("POST /v1/admin/devices/{device_binding_id}/activate-subscription", s.admin(s.handleAdminActivateSubscription))
+	mux.HandleFunc("GET /v1/admin/devices/{device_binding_id}/monitored-windows", s.admin(s.handleAdminGetMonitoredWindows))
+	mux.HandleFunc("PUT /v1/admin/devices/{device_binding_id}/monitored-windows", s.admin(s.handleAdminPutMonitoredWindows))
 }
 
 func (s *Server) admin(next http.HandlerFunc) http.HandlerFunc {
@@ -75,10 +82,13 @@ func (s *Server) handleAdminMe(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAdminStatus(w http.ResponseWriter, r *http.Request) {
 	if s.statusChecker == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"services": []any{}})
+		writeJSON(w, http.StatusOK, map[string]any{"services": []any{}, "host": map[string]any{}})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"services": s.statusChecker.All(r.Context())})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"services": s.statusChecker.All(r.Context()),
+		"host":     s.statusChecker.HostMetrics(),
+	})
 }
 
 func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
@@ -121,12 +131,75 @@ func (s *Server) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	rows, total, err := s.pg.AdminSearchUsers(r.Context(), q, limit, offset)
+	rows, total, err := s.pg.AdminSearchUsers(r.Context(), q, r.URL.Query().Get("filter"), limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "list users failed", "")
 		return
 	}
+	actorID := userIDFromContext(r.Context())
+	for i := range rows {
+		s.enrichAdminUserMeta(&rows[i], actorID)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": rows, "total": total})
+}
+
+func (s *Server) handleAdminCreateUser(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email       string `json:"email"`
+		Password    string `json:"password"`
+		DisplayName string `json:"display_name"`
+		Timezone    string `json:"timezone"`
+		AccountType string `json:"account_type"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	if req.Email == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "email is required", "email")
+		return
+	}
+	if len(req.Password) < 8 {
+		writeError(w, http.StatusBadRequest, "invalid_request", "password must be at least 8 characters", "password")
+		return
+	}
+	accountType := strings.ToLower(strings.TrimSpace(req.AccountType))
+	if accountType == "" {
+		accountType = "user"
+	}
+	if accountType != "user" && accountType != "admin" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "account_type must be user or admin", "account_type")
+		return
+	}
+
+	res, err := s.pg.AdminCreateUser(r.Context(), req.Email, req.Password, req.DisplayName, req.Timezone)
+	if err != nil {
+		if errors.Is(err, auth.ErrEmailTaken) {
+			writeError(w, http.StatusConflict, "conflict", "email is already registered", "email")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "create user failed", "")
+		return
+	}
+
+	adminEmail, _ := s.pg.GetUserEmail(r.Context(), userIDFromContext(r.Context()))
+	s.recordAudit(r, audit.Entry{
+		ActorUserID: userIDFromContext(r.Context()), Action: "user.created",
+		ResourceType: "user", ResourceID: res.User.ID,
+		Message: fmt.Sprintf("admin %s created %s account for %s", adminEmail, accountType, req.Email),
+		Metadata: map[string]any{"account_type": accountType, "email_verified": true},
+	})
+
+	resp := map[string]any{
+		"user":      publicUser(res.User),
+		"household": res.Household,
+		"account_type": accountType,
+		"email_verified": true,
+	}
+	if accountType == "admin" {
+		resp["console_admin_note"] = "Add this email to VSRV_ADMIN_EMAILS and redeploy for VSRV admin console access."
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 func (s *Server) handleAdminGetUser(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +213,56 @@ func (s *Server) handleAdminGetUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error", "get user failed", "")
 		return
 	}
+	s.enrichAdminUserDetail(&detail, userIDFromContext(r.Context()))
+	s.enrichAdminUserDetailVNMS(r.Context(), &detail)
 	writeJSON(w, http.StatusOK, detail)
+}
+
+func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("user_id")
+	if id == userIDFromContext(r.Context()) {
+		writeError(w, http.StatusConflict, "conflict", "cannot delete your own account", "")
+		return
+	}
+	targetEmail, err := s.pg.GetUserEmail(r.Context(), id)
+	if err != nil {
+		if err == postgres.ErrUserNotFound {
+			writeError(w, http.StatusNotFound, "not_found", "user not found", "")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "lookup user failed", "")
+		return
+	}
+	if s.cfg.IsAdminEmail(targetEmail) {
+		writeError(w, http.StatusConflict, "conflict", "users listed in VSRV_ADMIN_EMAILS cannot be deleted", "")
+		return
+	}
+	if err := s.pg.AdminDeleteUser(r.Context(), id); err != nil {
+		switch {
+		case errors.Is(err, postgres.ErrUserNotFound):
+			writeError(w, http.StatusNotFound, "not_found", "user not found", "")
+		default:
+			writeError(w, http.StatusInternalServerError, "internal_error", "delete user failed", "")
+		}
+		return
+	}
+	adminEmail, _ := s.pg.GetUserEmail(r.Context(), userIDFromContext(r.Context()))
+	s.recordAudit(r, audit.Entry{
+		ActorUserID: userIDFromContext(r.Context()), Action: "user.deleted",
+		ResourceType: "user", ResourceID: id,
+		Message: fmt.Sprintf("admin %s deleted user %s", adminEmail, targetEmail),
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (s *Server) enrichAdminUserMeta(row *postgres.AdminUserRow, actorID string) {
+	row.ConsoleAdmin = s.cfg.IsAdminEmail(row.Email)
+	row.Deletable = row.ID != actorID && !row.ConsoleAdmin
+}
+
+func (s *Server) enrichAdminUserDetail(d *postgres.AdminUserDetail, actorID string) {
+	d.ConsoleAdmin = s.cfg.IsAdminEmail(d.Email)
+	d.Deletable = d.ID != actorID && !d.ConsoleAdmin
 }
 
 func (s *Server) handleAdminDisableUser(w http.ResponseWriter, r *http.Request) {
@@ -536,6 +658,52 @@ func (s *Server) handleAdminActivateSubscription(w http.ResponseWriter, r *http.
 		Metadata: map[string]any{"months": months},
 	})
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "months": months})
+}
+
+func (s *Server) handleAdminGetMonitoredWindows(w http.ResponseWriter, r *http.Request) {
+	if s.devSvc == nil {
+		writeError(w, http.StatusServiceUnavailable, "service_unavailable", "device service not configured", "")
+		return
+	}
+	bindingID := r.PathValue("device_binding_id")
+	view, err := s.devSvc.GetMonitoredWindows(r.Context(), bindingID)
+	if writeDeviceError(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+func (s *Server) handleAdminPutMonitoredWindows(w http.ResponseWriter, r *http.Request) {
+	if s.devSvc == nil {
+		writeError(w, http.StatusServiceUnavailable, "service_unavailable", "device service not configured", "")
+		return
+	}
+	bindingID := r.PathValue("device_binding_id")
+	var req struct {
+		Timezone  string                   `json:"timezone"`
+		Windows   []domain.MonitoredWindow `json:"windows"`
+		AlertMode string                   `json:"alert_mode"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	view, err := s.devSvc.SetMonitoredWindows(r.Context(), devices.MonitoredWindowsInput{
+		BindingID: bindingID,
+		UserID:    userIDFromContext(r.Context()),
+		Timezone:  req.Timezone,
+		Windows:   req.Windows,
+		AlertMode: req.AlertMode,
+	})
+	if writeDeviceError(w, err) {
+		return
+	}
+	adminEmail, _ := s.pg.GetUserEmail(r.Context(), userIDFromContext(r.Context()))
+	s.recordAudit(r, audit.Entry{
+		ActorUserID: userIDFromContext(r.Context()), Action: "device.monitored_windows_updated",
+		ResourceType: "device_binding", ResourceID: bindingID,
+		Message: fmt.Sprintf("admin %s updated monitored windows for binding %s", adminEmail, bindingID),
+	})
+	writeJSON(w, http.StatusOK, view)
 }
 
 func (s *Server) recordAudit(r *http.Request, e audit.Entry) {
