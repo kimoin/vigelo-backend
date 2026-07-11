@@ -56,7 +56,9 @@
       gap: 1rem;
       align-items: center;
       flex-wrap: wrap;
-      position: relative;
+      position: sticky;
+      top: 0;
+      z-index: 50;
       box-shadow: var(--shadow);
     }
     header::after {
@@ -237,7 +239,7 @@
       font-size:.68rem; line-height:1.35;
       word-wrap:break-word; overflow-wrap:anywhere; white-space:normal;
     }
-    .user-menu { position:relative; margin-left:auto; }
+    .user-menu { position:relative; margin-left:auto; z-index:51; }
     .user-menu-trigger {
       background:#fff; border:1px solid var(--border); color:var(--text);
       padding:.4rem .65rem; border-radius:8px; cursor:pointer; font-size:.85rem;
@@ -254,7 +256,7 @@
     .user-menu-panel {
       position:absolute; right:0; top:calc(100% + .35rem); min-width:280px;
       background:var(--card); border:1px solid var(--border); border-radius:12px;
-      padding:1rem; z-index:30; box-shadow:var(--shadow-lg);
+      padding:1rem; z-index:52; box-shadow:var(--shadow-lg);
     }
     .user-menu-panel h4 { margin:0 0 .65rem; font-size:.9rem; }
     .user-menu-panel input { width:100%; }
@@ -299,7 +301,7 @@
     }
     .payment-row:last-child { border-bottom:none; }
     .modal {
-      position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:1rem;
+      position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center; padding:1rem;
     }
     .modal-backdrop { position:absolute; inset:0; background:rgba(24,24,27,.35); }
     .modal-card {
