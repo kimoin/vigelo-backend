@@ -203,6 +203,7 @@
     .count-tone-red strong { color:var(--red-deep); }
     .toolbar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem; }
     .toolbar input[type="search"], .toolbar input[type="text"] { flex:1; min-width:160px; }
+    .toolbar [data-open-add-user] { margin-left:auto; }
     .gauge-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:.75rem; margin-bottom:1.25rem; }
     .gauge-card {
       position:relative; overflow:hidden;
@@ -283,7 +284,12 @@
     details.tree-node[open] > summary::before { transform:rotate(90deg); }
     details.tree-node .tree-body { padding:0 .85rem .85rem; border-top:1px solid var(--border); }
     details.tree-node.nested { margin-left:.75rem; background:#fafafa; }
-    .tree-actions { margin-left:auto; display:flex; gap:.35rem; flex-wrap:wrap; }
+    .tree-actions { margin-left:auto; display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+    .tree-actions .action {
+      padding:.32rem .6rem; font-size:.78rem;
+      box-shadow:0 1px 6px rgba(37,99,235,.18);
+    }
+    .tree-actions .action:hover { transform:none; }
     .meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:.45rem; margin:.5rem 0; }
     .meta-item { background:#fafafa; border:1px solid var(--border); padding:.45rem .6rem; border-radius:8px; font-size:.82rem; }
     .meta-item strong { display:block; font-size:.72rem; color:var(--muted); font-weight:500; text-transform:uppercase; letter-spacing:.03em; }
@@ -312,8 +318,11 @@
     .modal-card label { display:block; font-size:.82rem; color:var(--muted); margin-bottom:.2rem; margin-top:.5rem; }
     .modal-card input, .modal-card select { width:100%; margin-bottom:.25rem; }
     .modal-actions { display:flex; gap:.5rem; justify-content:flex-end; margin-top:1rem; }
-    .section-head { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; flex-wrap:wrap; }
-    .section-head h4 { margin:0; flex:1; }
+    .section-head {
+      display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; width:100%;
+    }
+    .section-head > :first-child:not(button) { flex:1; min-width:0; }
+    .section-head > button[data-show-add] { margin-left:auto; flex-shrink:0; }
     .add-form-panel { margin-bottom:.5rem; }
     .pagination {
       display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
@@ -873,11 +882,13 @@ function renderHouseholdNode(hh, u, windowsMap) {
     <div class="tree-body">
       <div class="muted" style="margin-bottom:.5rem">${hh.id}</div>
       <details class="tree-node nested">
-        <summary>Devices (${devices.length})</summary>
-        <div class="tree-body">
-          <div class="section-head">
+        <summary>
+          <span>Devices (${devices.length})</span>
+          <span class="tree-actions">
             <button class="action" type="button" data-show-add="prov-${hh.id}" onclick="event.preventDefault();event.stopPropagation()">+ Add device</button>
-          </div>
+          </span>
+        </summary>
+        <div class="tree-body">
           <div class="add-form-panel hidden" data-add-panel="prov-${hh.id}">
             <div class="form-inline">
               <input placeholder="Device ID" data-prov-device-id="${hh.id}" />
@@ -980,11 +991,13 @@ function renderUserDetail(u, windowsMap) {
       </div>
 
       <details class="tree-node nested" open>
-        <summary>Households (${(u.households || []).length})</summary>
+        <summary>
+          <span>Households (${(u.households || []).length})</span>
+          <span class="tree-actions">
+            <button class="action" type="button" data-show-add="hh-create-${u.id}" onclick="event.preventDefault();event.stopPropagation()">+ Add household</button>
+          </span>
+        </summary>
         <div class="tree-body">
-          <div class="section-head">
-            <button class="action" type="button" data-show-add="hh-create-${u.id}">+ Add household</button>
-          </div>
           <div class="add-form-panel hidden" data-add-panel="hh-create-${u.id}">
             <div class="form-inline">
               <input placeholder="Household name" data-hh-create-name="${u.id}" value="Home" />
